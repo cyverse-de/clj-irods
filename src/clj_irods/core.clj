@@ -4,7 +4,7 @@
             [clj-irods.cache-tools :as cache]
             [slingshot.slingshot :refer [try+ throw+]]
 
-            [clj-jargon.item-info :as info])
+            [clj-irods.jargon :as jargon])
   (:import [java.util.concurrent Executors ThreadFactory]))
 
 (def jargon-cfg
@@ -86,3 +86,24 @@
        (finally
          (when-not (:retain-jargon-pool ~cfg) (.shutdown jargon-pool#))
          (when-not (:retain-icat-pool ~cfg) (.shutdown icat-pool#))))))
+
+;; this will cache stat info
+(defn object-type
+  [irods path]
+  (:type (deref (jargon/stat irods path))))
+
+(defn modify-time
+  [irods path]
+  (:date-modified (deref (jargon/stat irods path))))
+
+(defn create-time
+  [irods path]
+  (:date-created (deref (jargon/stat irods path))))
+
+(defn file-size
+  [irods path]
+  (:file-size (deref (jargon/stat irods path))))
+
+(defn checksum
+  [irods path]
+  (:md5 (deref (jargon/stat irods path))))
