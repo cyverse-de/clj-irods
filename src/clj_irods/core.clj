@@ -1,7 +1,11 @@
 (ns clj-irods.core
   (:require [clj-jargon.init :as init]
             [clj-icat-direct.icat :as icat]
-            [slingshot.slingshot :refer [throw+]]))
+            [clj-irods.cache-tools :as cache]
+            [slingshot.slingshot :refer [try+ throw+]]
+
+            [clj-jargon.item-info :as info])
+  (:import [java.util.concurrent Executors ThreadFactory]))
 
 (def jargon-cfg
   (memoize (fn [c]
@@ -41,25 +45,62 @@
       (do ~@body))))
 
 (defmacro maybe-icat-transaction
-  [use-icat span-sym & body]
+  [use-icat & body]
   `(if ~use-icat
-     (icat/with-icat-transaction ~span-sym
+     (icat/with-icat-transaction span-sym#
        (do ~@body))
-     (let [~span-sym nil]
-       (do ~@body))))
+     (do ~@body)))
+
+(defn make-threadpool
+  [prefix thread-count]
+  (let [counter (atom 0)]
+    (Executors/newFixedThreadPool
+      thread-count
+      (proxy [ThreadFactory] []
+        (newThread [^Runnable runnable]
+          (let [t (Thread. runnable)]
+            (.setName t (str prefix "-" (swap! counter inc)))
+            t))))))
 
 (defmacro with-irods
   "Open connections to iRODS and/or transactions in the ICAT depending on the
   options passed in `cfg` and what's configured.  Bind this to the symbol
   passed in as `sym`. Recommended choice is to call it irods."
   [cfg sym & body]
-  `(let [jargon-cfg# (jargon-cfg (:jargon ~cfg))
+  `(let [id# (name (gensym "with-irods-"))
+         jargon-cfg# (jargon-cfg (:jargon ~cfg))
          use-jargon# (boolean jargon-cfg#)
-         use-icat# (have-icat)]
-     (maybe-icat-transaction use-icat# span#
-       (maybe-jargon use-jargon# jargon-cfg# jargon#
-         (let [~sym {:jargon     jargon#
-                     :has-jargon use-jargon#
-                     :has-icat   use-icat#
-                     :db-span    span#}]
-           (do ~@body))))))
+         use-icat# (have-icat)
+         jargon-pool# (or (:combined-pool ~cfg) (:jargon-pool ~cfg) (make-threadpool (str id# "-jargon") (or (:jargon-pool-size ~cfg) 1)))
+         icat-pool#   (or (:combined-pool ~cfg) (:icat-pool ~cfg) (make-threadpool (str id# "-icat") (or (:icat-pool-size ~cfg) 5)))]
+     (try+
+       (maybe-icat-transaction use-icat#
+         (maybe-jargon use-jargon# jargon-cfg# jargon#
+           (let [~sym {:jargon      jargon#
+                       :jargon-pool jargon-pool#
+                       :icat-pool   icat-pool#
+                       :has-jargon  use-jargon#
+                       :has-icat    use-icat#
+                       :cache       (atom {})}]
+             (do ~@body))))
+       (finally
+         (when-not (:retain-jargon-pool ~cfg) (.shutdown jargon-pool#))
+         (when-not (:retain-icat-pool ~cfg) (.shutdown icat-pool#))))))
+
+(defn stat*
+  "Creates and caches a delay for a stat of the path."
+  [irods path]
+  (->> [path :stat]
+       (cache/cached-or-do (:cache irods) #(info/stat @(:jargon irods) path))))
+
+(defn stat
+  "Creates and caches a delay for a stat of the path with `stat*` and tells it
+  to start running in the jargon thread pool, returning a `delay` that will
+  wait for and then return the stat or rethrow an error."
+  [irods path]
+  (let [cached (cache/get-cached (:cache irods) [path :stat])]
+    (if (and (delay? cached) (realized? cached))
+      (delay (cache/rethrow-if-error @cached))
+      (let [ag (agent path)]
+        (send-via (:jargon-pool irods) ag (fn [path] @(stat* irods path)))
+        (delay (await ag) (cache/rethrow-if-error @ag))))))
