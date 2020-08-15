@@ -86,17 +86,3 @@
        (finally
          (when-not (:retain-jargon-pool ~cfg) (.shutdown jargon-pool#))
          (when-not (:retain-icat-pool ~cfg) (.shutdown icat-pool#))))))
-
-(defn stat*
-  "Creates and caches a delay for a stat of the path."
-  [irods path]
-  (->> [path :stat]
-       (cache/cached-or-do (:cache irods) #(info/stat @(:jargon irods) path))))
-
-(defn stat
-  "Creates and caches a delay for a stat of the path with `stat*` and tells it
-  to start running in the jargon thread pool, returning a `delay` that will
-  wait for and then return the stat or rethrow an error."
-  [irods path]
-  (->> [path :stat]
-       (cache/cached-or-agent (:cache irods) #(stat* irods path) (:jargon-pool irods))))
