@@ -98,9 +98,5 @@
   to start running in the jargon thread pool, returning a `delay` that will
   wait for and then return the stat or rethrow an error."
   [irods path]
-  (let [cached (cache/get-cached (:cache irods) [path :stat])]
-    (if (and (delay? cached) (realized? cached))
-      (delay (cache/rethrow-if-error @cached))
-      (let [ag (agent path)]
-        (send-via (:jargon-pool irods) ag (fn [path] @(stat* irods path)))
-        (delay (await ag) (cache/rethrow-if-error @ag))))))
+  (->> [path :stat]
+       (cache/cached-or-agent (:cache irods) #(stat* irods path) (:jargon-pool irods))))
