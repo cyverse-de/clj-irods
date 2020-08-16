@@ -1,8 +1,14 @@
 (ns clj-irods.core
   (:require [clj-jargon.init :as init]
-            [clj-icat-direct.icat :as icat]
-            [clj-irods.cache-tools :as cache]
-            [slingshot.slingshot :refer [try+ throw+]])
+            [clj-icat-direct.icat :as icat-direct]
+            [slingshot.slingshot :refer [try+ throw+]]
+
+            [clojure.tools.logging :as log]
+
+            [clj-irods.jargon :as jargon]
+            [clj-irods.icat :as icat]
+            [clojure-commons.file-utils :as ft]
+            )
   (:import [java.util.concurrent Executors ThreadFactory]
            [org.irods.jargon.core.exception FileNotFoundException]))
 
@@ -24,7 +30,7 @@
 (def icat-spec
   (memoize (fn [c]
              (when c
-               (icat/icat-db-spec
+               (icat-direct/icat-db-spec
                  (:host c)
                  (:user c)
                  (:password c)
@@ -33,7 +39,7 @@
 
 (defn have-icat
   []
-  (map? icat/icat))
+  (map? icat-direct/icat))
 
 (defmacro maybe-jargon
   [use-jargon jargon-cfg jargon-sym & body]
@@ -46,7 +52,7 @@
 (defmacro maybe-icat-transaction
   [use-icat & body]
   `(if ~use-icat
-     (icat/with-icat-transaction span-sym#
+     (icat-direct/with-icat-transaction span-sym#
        (do ~@body))
      (do ~@body)))
 
@@ -85,3 +91,37 @@
        (finally
          (when-not (:retain-jargon-pool ~cfg) (.shutdown jargon-pool#))
          (when-not (:retain-icat-pool ~cfg) (.shutdown icat-pool#))))))
+
+(defn object-type
+  [irods user zone path]
+  (let [get-from-listing (fn [listing] (first (filter #(= (:full_path %) path) @listing)))
+        get-from-listing-item (fn [item] (condp = (:type item) "dataobject" :file "collection" :dir nil))
+        paged-folder-listing (icat/cached-paged-folder-listing irods user zone (ft/dirname path))
+        listing-item (when (delay? paged-folder-listing) (get-from-listing paged-folder-listing))
+        jargon-stat (jargon/cached-stat irods path)]
+    (cond
+      listing-item
+      (do
+        (log/info "Getting from cached icat listing")
+        (delay (get-from-listing-item listing-item)))
+
+      (delay? jargon-stat)
+      (do
+        (log/info "Getting from cached jargon stat")
+        (jargon/object-type irods path))
+
+      ;; INCOMPLETE will not get a type for anything past the first 1000 in a directory right now
+      (:has-icat irods)
+      (do
+        (log/info "Getting from a new listing (INCOMPLETE)")
+        (delay (get-from-listing-item (get-from-listing (icat/paged-folder-listing irods user zone (ft/dirname path))))))
+
+      (:has-jargon irods)
+      (do
+        (log/info "getting via jargon")
+        (jargon/object-type irods path))
+
+      :else
+      (do
+        (log/info "no route to find object type")
+        nil))))
