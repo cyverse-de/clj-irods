@@ -60,3 +60,10 @@
       (let [ag (agent nil)]
         (send-via pool ag (fn [n] @(action)))
         (delay (await ag) (rethrow-if-error @ag))))))
+
+(defn cached-or-nil
+  "Takes a cache and location in the cache. If the location in the cache has something and it's a realized delay, return it wrapped in rethrow-if-error and a new delay. Otherwise, return nil (*not* in a delay, for clarity)."
+  [cache ks]
+  (let [cached (get-in @cache ks)]
+    (when (and (delay? cached) (realized? cached))
+      (delay (rethrow-if-error @cached)))))

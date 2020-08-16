@@ -2,9 +2,7 @@
   (:require [clj-jargon.init :as init]
             [clj-icat-direct.icat :as icat]
             [clj-irods.cache-tools :as cache]
-            [slingshot.slingshot :refer [try+ throw+]]
-
-            [clj-irods.jargon :as jargon])
+            [slingshot.slingshot :refer [try+ throw+]])
   (:import [java.util.concurrent Executors ThreadFactory]
            [org.irods.jargon.core.exception FileNotFoundException]))
 
@@ -87,57 +85,3 @@
        (finally
          (when-not (:retain-jargon-pool ~cfg) (.shutdown jargon-pool#))
          (when-not (:retain-icat-pool ~cfg) (.shutdown icat-pool#))))))
-
-(defn- delay-get-in-fn
-  "Creates a function that executes `delay-fn` immediately with args, it should
-  return a ref. Return a delay that derefs that and calls `get-in` with `ks` on
-  the result."
-  [delay-fn ks]
-  (fn [& args]
-    (let [r (apply delay-fn args)]
-      (delay (get-in @r ks)))))
-
-;; stat and derived functions
-(def ^{:arglists '([irods path])} stat jargon/stat)
-(def ^{:arglists '([irods path])} object-type "Get the type of the file at `path`. Returns delay of :file, :dir, or nil." (delay-get-in-fn stat [:type]))
-(def ^{:arglists '([irods path])} date-modified (delay-get-in-fn stat [:date-modified]))
-(def ^{:arglists '([irods path])} date-created (delay-get-in-fn stat [:date-created]))
-(def ^{:arglists '([irods path])} file-size (delay-get-in-fn stat [:file-size]))
-(def ^{:arglists '([irods path])} checksum (delay-get-in-fn stat [:md5]))
-
-(defn exists?
-  [irods path]
-  (delay
-    (try+
-      (boolean @(object-type irods path))
-      (catch FileNotFoundException _ false))))
-
-(defn is-file?
-  [irods path]
-  (delay (= @(object-type irods path) :file)))
-
-(defn is-dir?
-  [irods path]
-  (delay (= @(object-type irods path) :dir)))
-
-(def ^{:arglists '([irods path])} maybe-stat jargon/maybe-stat)
-(def ^{:arglists '([irods path])} maybe-object-type "Get the type of the file at `path`. Returns delay of :file, :dir, or nil." (delay-get-in-fn maybe-stat [:type]))
-(def ^{:arglists '([irods path])} maybe-date-modified (delay-get-in-fn maybe-stat [:date-modified]))
-(def ^{:arglists '([irods path])} maybe-date-created (delay-get-in-fn maybe-stat [:date-created]))
-(def ^{:arglists '([irods path])} maybe-file-size (delay-get-in-fn maybe-stat [:file-size]))
-(def ^{:arglists '([irods path])} maybe-checksum (delay-get-in-fn maybe-stat [:md5]))
-
-(defn maybe-exists?
-  [irods path]
-  (delay
-    (try+
-      (boolean @(maybe-object-type irods path))
-      (catch FileNotFoundException _ false))))
-
-(defn maybe-is-file?
-  [irods path]
-  (delay (= @(maybe-object-type irods path) :file)))
-
-(defn maybe-is-dir?
-  [irods path]
-  (delay (= @(maybe-object-type irods path) :dir)))
