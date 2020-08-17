@@ -99,29 +99,8 @@
         paged-folder-listing (icat/cached-paged-folder-listing irods user zone (ft/dirname path))
         listing-item (when (delay? paged-folder-listing) (get-from-listing paged-folder-listing))
         jargon-stat (jargon/cached-stat irods path)]
-    (cond
-      listing-item
-      (do
-        (log/info "Getting from cached icat listing")
-        (delay (get-from-listing-item listing-item)))
-
-      (delay? jargon-stat)
-      (do
-        (log/info "Getting from cached jargon stat")
-        (jargon/object-type irods path))
-
-      ;; INCOMPLETE will not get a type for anything past the first 1000 in a directory right now
-      (:has-icat irods)
-      (do
-        (log/info "Getting from a new listing (INCOMPLETE)")
-        (delay (get-from-listing-item (get-from-listing (icat/paged-folder-listing irods user zone (ft/dirname path))))))
-
-      (:has-jargon irods)
-      (do
-        (log/info "getting via jargon")
-        (jargon/object-type irods path))
-
-      :else
-      (do
-        (log/info "no route to find object type")
-        nil))))
+    (or
+      (when listing-item (delay (get-from-listing-item listing-item)))
+      (when jargon-stat (delay (get-in @jargon-stat [:type])))
+      (when (:has-icat irods) (delay (get-from-listing-item (get-from-listing (icat/paged-folder-listing irods user zone (ft/dirname path))))))
+      (when (:has-jargon irods) (delay (get-in @(jargon/stat irods path) [:type]))))))
