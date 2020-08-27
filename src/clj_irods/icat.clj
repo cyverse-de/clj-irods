@@ -61,6 +61,44 @@
         (when (seq cached)
           (delay cached))))))
 
+(defn- keys-in [m]
+  (if (map? m)
+    (vec
+      (mapcat (fn [[k v]]
+                (let [sub (keys-in v)
+                      nested (map #(into [k] %) (filter (comp not empty?) sub))]
+                  (if (seq nested)
+                    nested
+                    [[k]])))
+              m))
+    []))
+
+(defn- merge-listing
+  [extant to-merge limit offset]
+  (let [ranges (into {} (mapcat (fn [[k v]] (mapv #(vector (+ % k) [k %]) (keys v))) extant))]
+    (if (contains? ranges offset) ;; is there an existing range that ends at our start point
+      (let [[old-limit old-offset] (get ranges offset) ;; there is, so extend it with these new values
+            extant-values (get-in extant [old-limit old-offset])
+            new-values    (concat extant-values to-merge)]
+        (into {} (remove (fn [[k v]] (empty? v))
+          (-> extant
+              (update-in [old-limit] dissoc old-offset) ;; effectively, dissoc-in [old-limit old-offset]
+              (assoc-in [(+ old-limit limit) old-offset] new-values)))))
+      (assoc-in extant [limit offset] to-merge)))) ;; there is not, so just stick the merge in
+
+(defn merge-listings
+  [listings]
+  (let [key-paths (map (partial take 6) (keys-in listings))]
+    (reduce
+      (fn [m ks]
+        (let [ks4            (take 4 ks)
+              [limit offset] (drop 4 ks)]
+          (if-let [extant (get-in m ks4)]
+            (assoc-in m ks4 (merge-listing extant (get-in listings ks) limit offset))
+            (assoc-in m ks (get-in listings ks)))))
+      {}
+      key-paths)))
+
 (defn flatten-cached-listings
   "Take a set of listings as they're cached (from all-cached-listings or filtered-cached-listings) and return a simple sequence"
   [listings]
