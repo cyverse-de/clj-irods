@@ -86,7 +86,7 @@
         (into {} (remove (fn [[k v]] (empty? v))
           (-> extant
               (update-in [old-limit] dissoc old-offset) ;; effectively, dissoc-in [old-limit old-offset]
-              (assoc-in [(+ old-limit limit) old-offset] new-values)))))
+              (assoc-in [(if (nil? limit) nil (+ old-limit limit)) old-offset] new-values)))))
       (assoc-in extant [limit offset] to-merge)))) ;; there is not, so just stick the merge in
 
 (defn merge-listings
@@ -106,33 +106,33 @@
 (defn get-range
   "Given merged listings selected down to limit-offset section, get a section of results for a limit & offset"
   [merged-listings limit offset]
-  (let [unbounded-limit? (some nil? (keys merged-listings))
-        unbounded-offset (and unbounded-limit? (filter #(>= offset %) (keys (get merged-listings nil))))
-        bounded-limit (and (not unbounded-limit?) (not (nil? limit)) (filter #(<= limit %) (keys merged-listings)))
-        bounded-offset (and (seq bounded-limit) (filter #(>= offset %) (keys (get merged-listings (first bounded-limit)))))
-        bounded-limit-offset (and (not (seq bounded-limit)) (filter (fn [[l o]] (and (>= offset o) (> l (count (get-in merged-listings [l o]))))) (map (partial take 2) (keys-in merged-listings))))]
-    (log/info "get-range" limit offset unbounded-limit? unbounded-offset bounded-limit bounded-offset bounded-limit-offset)
+  (let [all-ranges (mapv (partial take 2) (keys-in merged-listings))
+        unbounded-limit-offset (filter (fn [[l o]] (and (nil? l) (>= offset o))) all-ranges)
+        bounded-limit-offset (and
+                               (not (nil? limit))
+                               (filter (fn [[l o]] (and (not (nil? l)) (<= limit l) (>= offset o))) all-ranges))
+        finished-ranges (filter (fn [[l o]] (and (not (nil? l)) (>= offset o) (> l (count (get-in merged-listings [l o]))))) all-ranges)]
+    (log/info "get-range" limit offset unbounded-limit-offset bounded-limit-offset finished-ranges)
     (cond
       ;; we have a cached listing with (:limit nil) and an offset <= our requested offset
-      (and unbounded-limit? (seq unbounded-offset))
-      (let [cached-offset (first unbounded-offset)
-            results (get-in merged-listings [nil cached-offset])]
+      (seq unbounded-limit-offset)
+      (let [[cached-limit cached-offset] (first unbounded-limit-offset)
+            results (get-in merged-listings [cached-limit cached-offset])]
         (if (nil? limit)
           (delay (drop (- offset cached-offset) results))
           (delay (take limit (drop (- offset cached-offset) results)))))
 
       ;; we have a cached listing where the number of items is less than its limit (i.e. -- it reached the end) and an offset <= our requested offset
-      (seq bounded-limit-offset)
-      (let [[cached-limit cached-offset] (first bounded-limit-offset)
+      (seq finished-ranges)
+      (let [[cached-limit cached-offset] (first finished-ranges)
             results (get-in merged-listings [cached-limit cached-offset])]
         (if (nil? limit)
           (delay (drop (- offset cached-offset) results))
           (delay (take limit (drop (- offset cached-offset) results)))))
 
       ;; we have a bounded limit and offset in the request, and a cached entry that can fulfill it
-      (and (not (nil? limit)) (seq bounded-limit) (seq bounded-offset))
-      (let [cached-limit (first bounded-limit)
-            cached-offset (first bounded-offset)
+      (and (not (nil? limit)) (seq bounded-limit-offset))
+      (let [[cached-limit cached-offset] (first bounded-limit-offset)
             results (get-in merged-listings [cached-limit cached-offset])]
         (delay (take limit (drop (- offset cached-offset) results))))
       
