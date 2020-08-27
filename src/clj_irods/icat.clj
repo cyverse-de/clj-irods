@@ -112,7 +112,6 @@
                                (not (nil? limit))
                                (filter (fn [[l o]] (and (not (nil? l)) (<= limit l) (>= offset o))) all-ranges))
         finished-ranges (filter (fn [[l o]] (and (not (nil? l)) (>= offset o) (> l (count (get-in merged-listings [l o]))))) all-ranges)]
-    (log/info "get-range" limit offset unbounded-limit-offset bounded-limit-offset finished-ranges)
     (cond
       ;; we have a cached listing with (:limit nil) and an offset <= our requested offset
       (seq unbounded-limit-offset)

@@ -15,7 +15,7 @@
   "Takes an action and tries to execute it. If it throws an error, returns an
   object with the error at a known key."
   [action]
-  (log/info "do-or-error" action)
+  (log/info "resolving cached delay")
   (try+
     (action)
     (catch Object o
@@ -23,9 +23,8 @@
 
 (defn- assoc-in-empty
   [m ks v]
-  (log/info "assoc-in-empty")
   (when-not (get-in m ks)
-    (log/info "assoc'ing")
+    (log/info "updating cache:" ks)
     (assoc-in m ks v)))
 
 (defn- do-and-store
@@ -33,7 +32,7 @@
   cache at that location which will execute `do-or-error` with the provided
   action."
   [cache action ks]
-  (log/info "do-and-store" action ks)
+  (log/info "ensuring cache:" ks)
   (let [store (delay (do-or-error action))]
     (-> cache
         (swap! assoc-in-empty ks store)
