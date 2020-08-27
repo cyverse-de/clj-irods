@@ -123,6 +123,21 @@
   [irods user zone path]
   (field-from-stat-or-listing :file-size :data_size irods user zone path))
 
+(defn folder-listing
+  [irods user zone path & {:keys [entity-type sort-column sort-direction limit offset info-types] :or {entity-type :any sort-column :base-name sort-direction :desc limit 1000 offset 0 info-types []}}]
+  (let [cached (get-in
+                 (icat/merge-listings 
+                   (icat/filtered-cached-listings irods user zone path
+                                                  :entity-type entity-type
+                                                  :sort-column sort-column
+                                                  :sort-direction sort-direction
+                                                  :info-types info-types))
+                 [entity-type info-types sort-column sort-direction])] ;; don't include limit/offset here
+    (let [cached-range (and cached (icat/get-range cached limit offset))]
+      (if cached-range
+        cached-range 
+        (icat/paged-folder-listing irods user zone path :entity-type entity-type :sort-column sort-column :sort-direction sort-direction :limit limit :offset offset :info-types info-types)))))
+
 (defn items-in-folder
   [irods user zone path & {:keys [entity-type info-types] :or {entity-type :any info-types []}}] ;; only support the actual filters, we don't care about sorting and limit/offset for this
   (let [cached (icat/filtered-cached-listings irods user zone path :entity-type entity-type :info-types info-types)]
