@@ -73,6 +73,9 @@
               m))
     []))
 
+;; NOTE: this merges only directly adjacent ranges -- overlapping ranges will remain separate. This could be less than ideal.
+;; e.g. if we have three ranges, (0 30) (10 40) (20 50), none of them will merge even though we have everything in (0 50)
+;; I'm hoping this doesn't matter much in practice, since it's usually not all that useful to grab overlapping ranges.
 (defn- merge-listing
   [extant to-merge limit offset]
   (let [ranges (into {} (mapcat (fn [[k v]] (mapv #(vector (+ % k) [k %]) (keys v))) extant))]
