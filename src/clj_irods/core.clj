@@ -156,7 +156,18 @@
 (defn uuid
   [irods user zone path]
   (cached-or-get irods
-    [from-listing :uuid user zone path]))
+    [from-listing :uuid user zone path]
+    [(fn [cache? irods path]
+       (let [get-from-metadata (fn [metadata]
+                                 (when-let [uuid-meta (first (filter #(= (:attr %) "ipc_UUID") @metadata))]
+                                   (delay (get uuid-meta :value))))]
+           (when-let [metadata (if cache?
+                                 (jargon/cached-get-metadata irods path)
+                                 (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
+             (or
+               (get-from-metadata metadata)
+               nil))))
+     path]))
 
 (defn permission
   [irods user zone path]

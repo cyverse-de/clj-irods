@@ -2,6 +2,7 @@
   (:require [slingshot.slingshot :refer [try+]]
             [clj-jargon.item-info :as info]
             [clj-jargon.permissions :as perms]
+            [clj-jargon.metadata :as metadata]
             [clj-irods.cache-tools :as cache])
   (:import [org.irods.jargon.core.exception FileNotFoundException]))
 
@@ -61,3 +62,22 @@
 (defn maybe-permission-for
   [irods user path & {:keys [known-type]}]
   (delay (deref (permission-for irods user path :known-type known-type))))
+
+(defn- get-metadata*
+  [irods path & {:keys [known-type]}]
+  (->> [path ::get-metadata]
+       (cache/cached-or-do (:cache irods) #(metadata/get-metadata @(:jargon irods) path))))
+
+(defn get-metadata
+  [irods path & {:keys [known-type]}]
+  (->> [path ::get-metadata]
+       (cache/cached-or-agent (:cache irods) #(get-metadata* irods path :known-type known-type) (:jargon-pool irods))))
+
+(defn cached-get-metadata
+  [irods path & _ignored_info]
+  (->> [path ::get-metadata]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-get-metadata
+  [irods user path & {:keys [known-type]}]
+  (delay (deref (get-metadata irods user path :known-type known-type))))
