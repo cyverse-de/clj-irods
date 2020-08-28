@@ -53,6 +53,7 @@
   in the specified `pool`. `action` should return something that can be
   deref'd, and will be."
   [cache action pool ks]
+  (log/info "cache or agent:" ks)
   (let [cached (get-in @cache ks)]
     (if (and (delay? cached) (realized? cached))
       (delay (rethrow-if-error @cached))
@@ -63,6 +64,7 @@
 (defn cached-or-nil
   "Takes a cache and location in the cache. If the location in the cache has something and it's a realized delay, return it wrapped in rethrow-if-error and a new delay. Otherwise, return nil (*not* in a delay, for clarity)."
   [cache ks]
+  (log/info "try from cache:" ks)
   (let [cached (get-in @cache ks)]
     (when (and (delay? cached) (realized? cached))
       (delay (rethrow-if-error @cached)))))
