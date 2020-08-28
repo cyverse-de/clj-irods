@@ -94,9 +94,9 @@
 
 (defn field-from-stat-or-listing
   [stat-field get-from-listing-item irods user zone path]
-  (let [get-from-listing (fn [listing] (first (filter #(= (:full_path %) path) @listing)))
-        paged-folder-listing (icat/cached-paged-folder-listing irods user zone (ft/dirname path))
-        listing-item (when (delay? paged-folder-listing) (get-from-listing paged-folder-listing))
+  (let [get-from-listing (fn [listing] (first (filter #(= (:full_path %) path) (if (delay? listing) @listing listing))))
+        paged-folder-listing (icat/all-cached-listings irods user zone (ft/dirname path))
+        listing-item (when (delay? paged-folder-listing) (get-from-listing (apply concat (icat/flatten-cached-listings @paged-folder-listing))))
         jargon-stat (jargon/cached-stat irods path)]
     (or
       (when listing-item (delay (get-from-listing-item listing-item)))
