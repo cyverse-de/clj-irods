@@ -1,5 +1,6 @@
 (ns clj-irods.icat
   (:require [clj-irods.cache-tools :as cache]
+            [clojure-commons.file-utils :as ft]
             [clojure.tools.logging :as log]
             [clj-icat-direct.icat :as icat]))
 
@@ -173,8 +174,31 @@
 (defn cached-user-group-ids
   [irods user zone]
   (->> [user zone ::user-group-ids]
-       (cache/cached-or-nil (:cache irods) #(user-group-ids* irods user zone))))
+       (cache/cached-or-nil (:cache irods))))
 
 (defn maybe-user-group-ids
   [irods user zone]
   (delay (deref (user-group-ids irods user zone))))
+
+;; get-item
+(defn- get-item*
+  [irods user zone path]
+  (let [cached-ids (cached-user-group-ids irods user zone)
+        args (if cached-ids [@cached-ids] [user zone])]
+    (->> [path ::get-item user zone]
+         (cache/cached-or-do (:cache irods)
+                             #(apply icat/get-item (ft/dirname path) (ft/basename path) args)))))
+
+(defn get-item
+  [irods user zone path]
+  (->> [path ::get-item user zone]
+       (cache/cached-or-agent (:cache irods) #(get-item* irods user zone path) (:icat-pool irods))))
+
+(defn cached-get-item
+  [irods user zone path]
+  (->> [path ::get-item user zone]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-get-item
+  [irods user zone path]
+  (delay (deref (get-item irods user zone path))))

@@ -96,14 +96,15 @@
   [stat-field get-from-listing-item irods user zone path]
   (let [get-from-listing (fn [listing] (first (filter #(= (:full_path %) path) (if (delay? listing) @listing listing))))
         paged-folder-listing (icat/all-cached-listings irods user zone (ft/dirname path))
+        single-item (icat/cached-get-item irods user zone path)
         listing-item (when (delay? paged-folder-listing) (get-from-listing (apply concat (icat/flatten-cached-listings @paged-folder-listing))))
         jargon-stat (jargon/cached-stat irods path)]
     (or
-      (when listing-item (delay (get-from-listing-item listing-item)))
-      (when jargon-stat (delay (get-in @jargon-stat [stat-field])))
-      (when (:has-jargon irods) (delay (get-in @(jargon/stat irods path) [stat-field])))
-      ;; listing last because the default limit could exclude the object we care about
-      (when (:has-icat irods) (delay (get-from-listing-item (get-from-listing (icat/paged-folder-listing irods user zone (ft/dirname path)))))))))
+      (when listing-item        (delay (get-from-listing-item listing-item)))
+      (when single-item         (delay (get-from-listing-item single-item)))
+      (when jargon-stat         (delay (get-in @jargon-stat [stat-field])))
+      (when (:has-icat irods)   (delay (force (icat/user-group-ids irods user zone)) (get-from-listing-item @(icat/get-item irods user zone path))))
+      (when (:has-jargon irods) (delay (get-in @(jargon/stat irods path) [stat-field]))))))
 
 (defn object-type
   [irods user zone path]
