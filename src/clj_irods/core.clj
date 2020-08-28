@@ -115,6 +115,7 @@
           (when single-item  (delay (extract-fn @single-item)))
           nil))
       (or
+        ;; better if we pass user group IDs in so we can get them from any source, rather than forcing the icat version specifically
         (when (:has-icat irods) (delay (force (icat/user-group-ids irods user zone)) (extract-fn @(icat/get-item irods user zone path))))
         nil))))
 
@@ -161,7 +162,12 @@
   [irods user zone path]
   (cached-or-get irods
     [from-listing (comp jargon-perms/fmt-perm :access_type_id) user zone path]
-    [(fn [cache? irods user path] (if cache? (jargon/cached-permission-for irods user path) (jargon/permission-for irods user path))) user path]))
+    [(fn [cache? irods user path]
+       (if cache?
+         (jargon/cached-permission-for irods user path)
+         (delay
+           @(jargon/permission-for irods user path :known-type @(object-type irods user zone path)))))
+     user path]))
 
 (defn folder-listing
   [irods user zone path & {:keys [entity-type sort-column sort-direction limit offset info-types] :or {entity-type :any sort-column :base-name sort-direction :desc limit 1000 offset 0 info-types []}}]

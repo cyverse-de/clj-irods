@@ -182,23 +182,26 @@
 
 ;; get-item
 (defn- get-item*
-  [irods user zone path]
+  [irods user zone path & {:keys [user-group-ids]}]
   (let [cached-ids (cached-user-group-ids irods user zone)
-        args (if cached-ids [@cached-ids] [user zone])]
+        args (cond
+               (seq user-group-ids) user-group-ids
+               cached-ids           [@cached-ids]
+               :else                [user zone])]
     (->> [path ::get-item user zone]
          (cache/cached-or-do (:cache irods)
                              #(apply icat/get-item (ft/dirname path) (ft/basename path) args)))))
 
 (defn get-item
-  [irods user zone path]
+  [irods user zone path & {:keys [user-group-ids]}]
   (->> [path ::get-item user zone]
-       (cache/cached-or-agent (:cache irods) #(get-item* irods user zone path) (:icat-pool irods))))
+       (cache/cached-or-agent (:cache irods) #(get-item* irods user zone path :user-group-ids user-group-ids) (:icat-pool irods))))
 
 (defn cached-get-item
-  [irods user zone path]
+  [irods user zone path & _ignored]
   (->> [path ::get-item user zone]
        (cache/cached-or-nil (:cache irods))))
 
 (defn maybe-get-item
-  [irods user zone path]
-  (delay (deref (get-item irods user zone path))))
+  [irods user zone path & {:keys [user-group-ids]}]
+  (delay (deref (get-item irods user zone path :user-group-ids user-group-ids))))

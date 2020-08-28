@@ -44,20 +44,20 @@
   (delay (deref (stat irods path))))
 
 (defn- permission-for*
-  [irods user path]
+  [irods user path & {:keys [known-type]}]
   (->> [path ::permission-for user]
-       (cache/cached-or-do (:cache irods) #(perms/permission-for @(:jargon irods) user path))))
+       (cache/cached-or-do (:cache irods) #(perms/permission-for @(:jargon irods) user path :known-type known-type))))
 
 (defn permission-for
-  [irods user path]
+  [irods user path & {:keys [known-type]}]
   (->> [path ::permission-for user]
-       (cache/cached-or-agent (:cache irods) #(permission-for* irods user path) (:jargon-pool irods))))
+       (cache/cached-or-agent (:cache irods) #(permission-for* irods user path :known-type known-type) (:jargon-pool irods))))
 
 (defn cached-permission-for
-  [irods user path]
+  [irods user path & _ignored_info]
   (->> [path ::permission-for user]
        (cache/cached-or-nil (:cache irods))))
 
 (defn maybe-permission-for
-  [irods user path]
-  (delay (deref (permission-for irods user path))))
+  [irods user path & {:keys [known-type]}]
+  (delay (deref (permission-for irods user path :known-type known-type))))
