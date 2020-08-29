@@ -108,10 +108,18 @@
   "Given merged listings selected down to limit-offset section, get a section of results for a limit & offset"
   [merged-listings limit offset]
   (let [all-ranges (mapv (partial take 2) (keys-in merged-listings))
+        ;; which routes into merged-listings have a limit of `nil` and an offset less than or equal to our request?
         unbounded-limit-offset (filter (fn [[l o]] (and (nil? l) (>= offset o))) all-ranges)
+        ;; which routes into merged-listings have a limit high enough to fulfill our (bounded) request and an acceptable offset?
         bounded-limit-offset (and
                                (not (nil? limit))
-                               (filter (fn [[l o]] (and (not (nil? l)) (<= limit l) (>= offset o))) all-ranges))
+                               (filter
+                                 (fn [[l o]] (and
+                                               (not (nil? l)) ;; bounded limit
+                                               (>= offset o)  ;; acceptable offset
+                                               (<= (+ limit (- offset o)) l))) ;; cached limit must cover both the request limit and the difference in offsets
+                                 all-ranges))
+        ;; which routes into merged-listings have reached the end of the results and have an acceptable offset?
         finished-ranges (filter (fn [[l o]] (and (not (nil? l)) (>= offset o) (> l (count (get-in merged-listings [l o]))))) all-ranges)]
     (cond
       ;; we have a cached listing with (:limit nil) and an offset <= our requested offset
@@ -135,7 +143,7 @@
       (let [[cached-limit cached-offset] (first bounded-limit-offset)
             results (get-in merged-listings [cached-limit cached-offset])]
         (delay (take limit (drop (- offset cached-offset) results))))
-      
+
       :else
       nil)))
 
