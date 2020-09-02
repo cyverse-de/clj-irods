@@ -44,9 +44,12 @@
   (map? icat-direct/icat))
 
 (defmacro maybe-jargon
-  [use-jargon jargon-cfg jargon-sym & body]
+  [use-jargon jargon-cfg jargon-opts jargon-sym & body]
   `(if ~use-jargon
-     (init/with-jargon ~jargon-cfg :lazy true [~jargon-sym]
+     (init/with-jargon ~jargon-cfg :lazy true
+                                   :client-user (or (:client-user ~jargon-opts) nil)
+                                   :auto-close  (or (:auto-close ~jargon-opts) nil)
+                                   [~jargon-sym]
        (do ~@body))
      (let [~jargon-sym (delay (throw+ {:type :no-irods}))]
       (do ~@body))))
@@ -76,13 +79,14 @@
   [cfg sym & body]
   `(let [id# (name (gensym "with-irods-"))
          jargon-cfg# (jargon-cfg (:jargon ~cfg))
+         jargon-opts# (or (:jargon-opts ~cfg) {})
          use-jargon# (boolean jargon-cfg#)
          use-icat# (have-icat)
          jargon-pool# (or (:combined-pool ~cfg) (:jargon-pool ~cfg) (make-threadpool (str id# "-jargon") (or (:jargon-pool-size ~cfg) 1)))
          icat-pool#   (or (:combined-pool ~cfg) (:icat-pool ~cfg) (make-threadpool (str id# "-icat") (or (:icat-pool-size ~cfg) 5)))]
      (try+
        (maybe-icat-transaction use-icat#
-         (maybe-jargon use-jargon# jargon-cfg# jargon#
+         (maybe-jargon use-jargon# jargon-cfg# jargon-opts# jargon#
            (let [~sym {:jargon      jargon#
                        :jargon-pool jargon-pool#
                        :icat-pool   icat-pool#
