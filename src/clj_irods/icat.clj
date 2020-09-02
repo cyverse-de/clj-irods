@@ -1,5 +1,6 @@
 (ns clj-irods.icat
-  (:require [clj-irods.cache-tools :as cache]
+  (:require [medley.core :refer [dissoc-in]]
+            [clj-irods.cache-tools :as cache]
             [clojure-commons.file-utils :as ft]
             [clojure.tools.logging :as log]
             [clj-icat-direct.icat :as icat]))
@@ -84,10 +85,9 @@
       (let [[old-limit old-offset] (get ranges offset) ;; there is, so extend it with these new values
             extant-values (get-in extant [old-limit old-offset])
             new-values    (concat extant-values to-merge)]
-        (into {} (remove (fn [[k v]] (empty? v))
           (-> extant
-              (update-in [old-limit] dissoc old-offset) ;; effectively, dissoc-in [old-limit old-offset]
-              (assoc-in [(if (nil? limit) nil (+ old-limit limit)) old-offset] new-values)))))
+              (dissoc-in [old-limit old-offset])
+              (assoc-in [(if (nil? limit) nil (+ old-limit limit)) old-offset] new-values)))
       (assoc-in extant [limit offset] to-merge)))) ;; there is not, so just stick the merge in
 
 (defn merge-listings

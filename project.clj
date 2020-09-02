@@ -6,6 +6,7 @@
   :deploy-repositories [["releases" :clojars]
                         ["snapshots" :clojars]]
   :dependencies [[org.clojure/clojure "1.8.0"]
+                 [medley "1.3.0"]
                  [org.cyverse/clojure-commons "2.8.3"]
                  [org.cyverse/clj-icat-direct "2.8.8-SNAPSHOT"
                    :exclusions [[org.slf4j/slf4j-log4j12]
