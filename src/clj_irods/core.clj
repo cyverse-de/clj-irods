@@ -47,9 +47,10 @@
   [use-jargon jargon-cfg jargon-opts jargon-sym & body]
   `(if ~use-jargon
      (init/with-jargon ~jargon-cfg :lazy true
-                                   :client-user (or (:client-user ~jargon-opts) nil)
-                                   :auto-close  (or (:auto-close ~jargon-opts) nil)
+                                   :client-user (:client-user ~jargon-opts)
+                                   :auto-close  (:auto-close ~jargon-opts)
                                    [~jargon-sym]
+
        (do ~@body))
      (let [~jargon-sym (delay (throw+ {:type :no-irods}))]
       (do ~@body))))
