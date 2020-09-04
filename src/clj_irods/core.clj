@@ -79,7 +79,7 @@
   passed in as `sym`. Recommended choice is to call it irods."
   [cfg sym & body]
   `(let [id# (name (gensym "with-irods-"))
-         jargon-cfg# (jargon-cfg (:jargon ~cfg))
+         jargon-cfg# (or (:jargon-cfg ~cfg) (jargon-cfg (:jargon ~cfg)))
          jargon-opts# (or (:jargon-opts ~cfg) {})
          use-jargon# (boolean jargon-cfg#)
          use-icat# (have-icat)
