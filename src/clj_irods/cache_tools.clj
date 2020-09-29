@@ -1,4 +1,33 @@
 (ns clj-irods.cache-tools
+  "This namespace contains functions for manipulating a cache stored in an
+  atom, using agents to calculate real values. Objects are identified by keys
+  that are paths into an object, compatible with get-in, assoc-in, etc.
+
+  Consumers of this namespace will mostly use three functions:
+
+  cached-or-do: this function is best used in a private function, and the
+  action passed to it should be the actual, final calculation of the value. It
+  will usually run inside an agent.
+
+  cached-or-agent: this function is best used for the main public API, and the
+  action passed to it should be the private function above that calls
+  `cached-or-do`. It will run what it is passed in an agent (in the passed-in
+  pool).
+
+  cached-or-nil: this function is a best used for a secondary API used to fetch
+  results, but only if they're already in the cache. It takes only the cache
+  and a key, since it does no calculation of values. It will return a
+  deref-able thing (a delay, generally) when there is a cached value, or nil
+  when not, so its return values play nicely with `if` and `when`.
+
+  Because this namespace is designed to work with agents, it uses some plumbing
+  for errors. Ordinarily, when an exception is thrown in an agent, the agent
+  hangs until `agent-error` is called on it. Instead, this namespace puts it
+  into a namespaced keyword (::error), and provides a function
+  `rethrow-if-error` that will rethrow the error from that key if it's present
+  in a returned value. Both `cached-or-agent` and `cached-or-nil` use this
+  function themselves, but if the cache is used directly outside this namespace
+  the function might need to be used there."
   (:require [slingshot.slingshot :refer [try+ throw+]]
             [clojure.tools.logging :as log]))
 
@@ -39,7 +68,7 @@
 
 (defn cached-or-do
   "Takes a cache, action, and location in the cache. If the location in the
-  cache has something, returns it, otherwise calls `do-or-store` to populate it
+  cache has something, returns it, otherwise calls `do-and-store` to populate it
   (with a `delay`). Returns the resulting delay, either way."
   [cache action ks]
   (or (get-in @cache ks)
