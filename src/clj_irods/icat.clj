@@ -5,24 +5,45 @@
             [clojure.tools.logging :as log]
             [clj-icat-direct.icat :as icat]))
 
+;; user-group-ids
+(defn- user-group-ids*
+  [irods user zone]
+  (->> [user zone ::user-group-ids]
+       (cache/cached-or-do (:cache irods) #(icat/user-group-ids user zone))))
+
+(defn user-group-ids
+  [irods user zone]
+  (->> [user zone ::user-group-ids]
+       (cache/cached-or-agent (:cache irods) #(user-group-ids* irods user zone) (:icat-pool irods))))
+
+(defn cached-user-group-ids
+  [irods user zone]
+  (->> [user zone ::user-group-ids]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-user-group-ids
+  [irods user zone]
+  (delay (deref (user-group-ids irods user zone))))
+
 ;; paged-folder-listing
 (defn- paged-folder-listing*
-  [irods user zone path & {:keys [entity-type sort-column sort-direction limit offset info-types] :or {entity-type :any sort-column :base-name sort-direction :desc limit 1000 offset 0 info-types []}}]
-  (let [more-opts {:entity-type entity-type :sort-column sort-column :sort-direction sort-direction :limit limit :offset offset :info-types info-types}]
+  [irods user zone path & {:keys [entity-type sort-column sort-direction limit offset info-types user-group-ids] :or {entity-type :any sort-column :base-name sort-direction :desc limit 1000 offset 0 info-types []}}]
+  (let [cached-ids (cached-user-group-ids irods user zone)
+        user-group-ids (if cached-ids @cached-ids user-group-ids)
+        more-opts {:entity-type entity-type :sort-column sort-column :sort-direction sort-direction :limit limit :offset offset :info-types info-types :user-group-ids user-group-ids}]
     (->> [path ::paged-folder-listing zone user entity-type info-types sort-column sort-direction limit offset]
          (cache/cached-or-do (:cache irods) #(apply icat/paged-folder-listing (apply concat (assoc more-opts :user user :zone zone :folder-path path)))))))
 
 (defn paged-folder-listing
-  [irods user zone path & {:keys [entity-type sort-column sort-direction limit offset info-types] :or {entity-type :any sort-column :base-name sort-direction :desc limit 1000 offset 0 info-types []}}]
-  (let [more-opts {:entity-type entity-type :sort-column sort-column :sort-direction sort-direction :limit limit :offset offset :info-types info-types}]
+  [irods user zone path & {:keys [entity-type sort-column sort-direction limit offset info-types user-group-ids] :or {entity-type :any sort-column :base-name sort-direction :desc limit 1000 offset 0 info-types []}}]
+  (let [more-opts {:entity-type entity-type :sort-column sort-column :sort-direction sort-direction :limit limit :offset offset :info-types info-types :user-group-ids user-group-ids}]
     (->> [path ::paged-folder-listing zone user entity-type info-types sort-column sort-direction limit offset]
          (cache/cached-or-agent (:cache irods) #(apply paged-folder-listing* irods user zone path (apply concat more-opts)) (:icat-pool irods)))))
 
 (defn cached-paged-folder-listing
   [irods user zone path & {:keys [entity-type sort-column sort-direction limit offset info-types] :or {entity-type :any sort-column :base-name sort-direction :desc limit 1000 offset 0 info-types []}}]
-  (let [more-opts {:entity-type entity-type :sort-column sort-column :sort-direction sort-direction :limit limit :offset offset :info-types info-types}]
-    (->> [path ::paged-folder-listing zone user entity-type info-types sort-column sort-direction limit offset]
-         (cache/cached-or-nil (:cache irods)))))
+  (->> [path ::paged-folder-listing zone user entity-type info-types sort-column sort-direction limit offset]
+       (cache/cached-or-nil (:cache irods))))
 
 (defn maybe-paged-folder-listing
   [& args]
@@ -168,32 +189,12 @@
        (mapcat vals)   ; limit
        (mapcat vals))) ; offset
 
-;; user-group-ids
-(defn- user-group-ids*
-  [irods user zone]
-  (->> [user zone ::user-group-ids]
-       (cache/cached-or-do (:cache irods) #(icat/user-group-ids user zone))))
-
-(defn user-group-ids
-  [irods user zone]
-  (->> [user zone ::user-group-ids]
-       (cache/cached-or-agent (:cache irods) #(user-group-ids* irods user zone) (:icat-pool irods))))
-
-(defn cached-user-group-ids
-  [irods user zone]
-  (->> [user zone ::user-group-ids]
-       (cache/cached-or-nil (:cache irods))))
-
-(defn maybe-user-group-ids
-  [irods user zone]
-  (delay (deref (user-group-ids irods user zone))))
-
 ;; get-item
 (defn- get-item*
   [irods user zone path & {:keys [user-group-ids]}]
   (let [cached-ids (cached-user-group-ids irods user zone)
         args (cond
-               (seq user-group-ids) user-group-ids
+               (seq user-group-ids) [user-group-ids]
                cached-ids           [@cached-ids]
                :else                [user zone])]
     (->> [path ::get-item user zone]

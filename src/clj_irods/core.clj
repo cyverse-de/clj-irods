@@ -9,8 +9,7 @@
 
             [clj-irods.jargon :as jargon]
             [clj-irods.icat :as icat]
-            [clojure-commons.file-utils :as ft]
-            )
+            [clojure-commons.file-utils :as ft])
   (:import [java.util.concurrent Executors ThreadFactory]
            [org.irods.jargon.core.exception FileNotFoundException]))
 
@@ -114,14 +113,17 @@
     (if cache?
       (let [paged-folder-listing (icat/all-cached-listings irods user zone (ft/dirname path))
             single-item (icat/cached-get-item irods user zone path)
-            listing-item (when (delay? paged-folder-listing) (get-from-listing (apply concat (icat/flatten-cached-listings @paged-folder-listing))))]
+            listing-item (when (delay? paged-folder-listing)
+                           (get-from-listing (apply concat (icat/flatten-cached-listings @paged-folder-listing))))]
         (or
           (when listing-item (delay (extract-fn listing-item)))
           (when single-item  (delay (extract-fn @single-item)))
           nil))
       (or
         ;; better if we pass user group IDs in so we can get them from any source, rather than forcing the icat version specifically
-        (when (:has-icat irods) (delay (force (icat/user-group-ids irods user zone)) (extract-fn @(icat/get-item irods user zone path))))
+        (when (:has-icat irods)
+          (let [userids (icat/user-group-ids irods user zone)]
+            (delay (force userids) (extract-fn @(icat/get-item irods user zone path)))))
         nil))))
 
 (defn- from-stat
@@ -143,7 +145,7 @@
 
 (defn object-type
   [irods user zone path]
-  (let [listing-extract-fn (fn [item] (condp = (:type item) "dataobject" :file "collection" :dir nil))]
+  (let [listing-extract-fn (fn [item] (condp = (:type item) "dataobject" :file "collection" :dir :none))]
     (from-stat-or-listing :type listing-extract-fn irods user zone path)))
 
 (defn date-modified
@@ -186,7 +188,9 @@
      user path]))
 
 (defn folder-listing
-  [irods user zone path & {:keys [entity-type sort-column sort-direction limit offset info-types] :or {entity-type :any sort-column :base-name sort-direction :desc limit 1000 offset 0 info-types []}}]
+  [irods user zone path &
+   {:keys [entity-type sort-column sort-direction limit offset info-types]
+    :or {entity-type :any sort-column :base-name sort-direction :desc limit 1000 offset 0 info-types []}}]
   (let [cached (get-in
                  (icat/merge-listings
                    (icat/filtered-cached-listings irods user zone path
@@ -198,10 +202,21 @@
         cached-range (and cached (icat/get-range cached limit offset))]
     (if cached-range
       cached-range
-      (icat/paged-folder-listing irods user zone path :entity-type entity-type :sort-column sort-column :sort-direction sort-direction :limit limit :offset offset :info-types info-types))))
+      (let [userids (icat/user-group-ids irods user zone)]
+      (delay
+        (force userids)
+        @(icat/paged-folder-listing irods user zone path
+                                    :entity-type entity-type
+                                    :sort-column sort-column
+                                    :sort-direction sort-direction
+                                    :limit limit
+                                    :offset offset
+                                    :info-types info-types))))))
 
 (defn items-in-folder
-  [irods user zone path & {:keys [entity-type info-types] :or {entity-type :any info-types []}}] ;; only support the actual filters, we don't care about sorting and limit/offset for this
+  [irods user zone path &
+   {:keys [entity-type info-types]
+    :or {entity-type :any info-types []}}] ;; only support the actual filters, we don't care about sorting and limit/offset for this
   (let [cached (icat/filtered-cached-listings irods user zone path :entity-type entity-type :info-types info-types)]
     (delay (get-in (first
                      (if cached

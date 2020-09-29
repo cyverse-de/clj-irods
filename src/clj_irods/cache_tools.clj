@@ -1,7 +1,6 @@
 (ns clj-irods.cache-tools
   (:require [slingshot.slingshot :refer [try+ throw+]]
-            [clojure.tools.logging :as log] 
-            ))
+            [clojure.tools.logging :as log]))
 
 (defn rethrow-if-error
   "Takes a return value. If it is an error as created by `do-or-error`,
