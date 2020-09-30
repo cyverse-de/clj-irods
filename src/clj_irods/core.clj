@@ -98,14 +98,7 @@
          (when-not (:retain-jargon-pool ~cfg) (.shutdown jargon-pool#))
          (when-not (:retain-icat-pool ~cfg) (.shutdown icat-pool#))))))
 
-(defn- cached-or-get
-  [irods & get-fns]
-  (or
-    (first (filter delay?
-        (concat
-          (map #(apply (first %) true  irods (rest %)) get-fns)
-          (map #(apply (first %) false irods (rest %)) get-fns))))
-    nil))
+;; Framework functions to be used to prefer cached values and choose between available data sources.
 
 (defn- from-listing
   [cache? irods extract-fn user zone path]
@@ -119,48 +112,67 @@
           (when listing-item (delay (extract-fn listing-item)))
           (when single-item  (delay (extract-fn @single-item)))
           nil))
-      (or
-        ;; better if we pass user group IDs in so we can get them from any source, rather than forcing the icat version specifically
-        (when (:has-icat irods)
-          (let [userids (icat/user-group-ids irods user zone)]
-            (delay (force userids) (extract-fn @(icat/get-item irods user zone path)))))
-        nil))))
+      ;; better if we pass user group IDs in so we can get them from any source, rather than forcing the icat version specifically
+      (when (:has-icat irods)
+        (let [userids (icat/user-group-ids irods user zone)]
+          (delay (force userids) (extract-fn @(icat/get-item irods user zone path))))))))
 
 (defn- from-stat
   [cache? irods extract-fn path]
   (if cache?
     (let [jargon-stat (jargon/cached-stat irods path)]
-      (or
-        (when jargon-stat (delay (extract-fn @jargon-stat)))
-        nil))
-    (or
-      (when (:has-jargon irods) (delay (extract-fn @(jargon/stat irods path))))
-      nil)))
+      (when jargon-stat (delay (extract-fn @jargon-stat))))
+    (when (:has-jargon irods) (delay (extract-fn @(jargon/stat irods path))))))
+
+(defn- cached-or-get
+  "Takes an irods instance and a set of function-call-like vectors, that is,
+  vectors where the first item is a function and the rest are arguments. These
+  functions will be called in order, with the arguments `true` and `irods` as
+  the first two (before the rest provided), and then with `false` instead.
+  Execution halts on the first value that is a `delay`, which is what we get
+  back from the cache and from functions that calculate cached values. Values
+  not already cached, and unconfigured/disabled data sources should return nil
+  instead."
+  [irods & get-fns]
+  (or
+    (first (filter delay?
+        (concat
+          (map #(apply (first %) true  irods (rest %)) get-fns)
+          (map #(apply (first %) false irods (rest %)) get-fns))))
+    nil))
 
 (defn- from-stat-or-listing
+  "A small nicety function for things that can be simply extracted with small
+  functions from either a stat or a listing and don't need special handling."
   [stat-extract-fn listing-extract-fn irods user zone path]
   (cached-or-get irods
     [from-listing listing-extract-fn user zone path]
     [from-stat stat-extract-fn path]))
 
+;; Actual API functions
 (defn object-type
+  "The type of the object. Returns a keyword, :file :dir or :none"
   [irods user zone path]
   (let [listing-extract-fn (fn [item] (condp = (:type item) "dataobject" :file "collection" :dir :none))]
     (from-stat-or-listing :type listing-extract-fn irods user zone path)))
 
 (defn date-modified
+  "The modified date of the path, as milliseconds since the epoch"
   [irods user zone path]
   (from-stat-or-listing :date-modified (comp (partial * 1000) #(Integer/parseInt %) :modify_ts) irods user zone path))
 
 (defn date-created
+  "The created date of the path, as milliseconds since the epoch"
   [irods user zone path]
   (from-stat-or-listing :date-created (comp (partial * 1000) #(Integer/parseInt %) :create_ts) irods user zone path))
 
 (defn file-size
+  "The number of bytes of a path. 0 for folders."
   [irods user zone path]
   (from-stat-or-listing :file-size :data_size irods user zone path))
 
 (defn uuid
+  "Get the UUID (via the ipc_UUID AVU) for a path."
   [irods user zone path]
   (cached-or-get irods
     [from-listing :uuid user zone path]
@@ -177,6 +189,7 @@
      path]))
 
 (defn permission
+  "Permission for a user on a path. Returned as a keyword like :read :write :own, or nil"
   [irods user zone path]
   (cached-or-get irods
     [from-listing (comp jargon-perms/fmt-perm :access_type_id) user zone path]
@@ -188,6 +201,11 @@
      user path]))
 
 (defn folder-listing
+  "Get a listing. Because listings can be paged as well as filtered, this
+  function merges abutting pages for compatible sets of filters among cached
+  listings, then determines if the merged values can satisfy the request,
+  selecting the specific section requested out of the merged values. When this
+  is not possible, makes a new request instead."
   [irods user zone path &
    {:keys [entity-type sort-column sort-direction limit offset info-types]
     :or {entity-type :any sort-column :base-name sort-direction :desc limit 1000 offset 0 info-types []}}]
@@ -214,6 +232,9 @@
                                     :info-types info-types))))))
 
 (defn items-in-folder
+  "Count of items in folder. This uses a listing under the hood, and considers
+  all cached listings with compatible filters, since they should have the same
+  number of items with equivalent filters, no matter what page is requested."
   [irods user zone path &
    {:keys [entity-type info-types]
     :or {entity-type :any info-types []}}] ;; only support the actual filters, we don't care about sorting and limit/offset for this
