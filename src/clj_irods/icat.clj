@@ -1,4 +1,7 @@
 (ns clj-irods.icat
+  "This namespace contains the assorted caching and fetching functions wrapping
+  clj-icat-direct. In general, it should be used mostly by clj-irods.core, and
+  not by users directly."
   (:require [medley.core :refer [dissoc-in]]
             [clj-irods.cache-tools :as cache]
             [clojure-commons.file-utils :as ft]
@@ -59,8 +62,8 @@
   [irods user zone path]
   (let [all (get-in @(:cache irods) [path ::paged-folder-listing zone user])]
     (when (seq all)
-    (delay
-      (resolve* 5 all)))))
+      (delay
+        (resolve* 5 all)))))
 
 (defn- filter-listings*
   ([filters nested-map]
@@ -85,6 +88,9 @@
           (delay cached))))))
 
 (defn- keys-in [m]
+  "Returns a vector of vectors that are keys into a nested map, compatible with
+  get-in, assoc-in, and our cache system. Along with `take` and `drop`, useful
+  for merging and splitting cached data."
   (if (map? m)
     (vec
       (mapcat (fn [[k v]]
@@ -96,10 +102,16 @@
               m))
     []))
 
-;; NOTE: this merges only directly adjacent ranges -- overlapping ranges will remain separate. This could be less than ideal.
-;; e.g. if we have three ranges, (0 30) (10 40) (20 50), none of them will merge even though we have everything in (0 50)
-;; I'm hoping this doesn't matter much in practice, since it's usually not all that useful to grab overlapping ranges.
 (defn- merge-listing
+  "Take a partially-merged output, a listing, and that listing's limit and
+  offset. Return a new output, where if the new listing is directly adjacent to
+  an existing thing in the cache, it is merged with it.
+
+  Note that this merges only directly adjacent ranges -- overlapping ranges
+  will remain separate. This could be less than ideal.  e.g. if we have three
+  ranges, (0 30) (10 40) (20 50), none of them will merge even though we have
+  everything in (0 50) This will hopefully not matter much in practice, since
+  it's usually not all that useful to grab overlapping ranges."
   [extant to-merge limit offset]
   (let [ranges (into {} (mapcat (fn [[k v]] (mapv #(vector (+ % k) [k %]) (keys v))) extant))]
     (if (contains? ranges offset) ;; is there an existing range that ends at our start point
@@ -112,6 +124,14 @@
       (assoc-in extant [limit offset] to-merge)))) ;; there is not, so just stick the merge in
 
 (defn merge-listings
+  "Given a set of listings, merge them together. Get the set of paths into the
+  object with `keys-in`, trim to 6 (the four filters plus limit and offset),
+  then reduce over them. If the output already has information for the first 4
+  components of the key (the filters, but not limit or offset), then merge with
+  the current value using `merge-listing`, otherwise copy the value directly.
+
+  This probably doesn't work entirely if things come in weirder orders, but the
+  worst case is an extra database call, not outright brokenness."
   [listings]
   (let [listings (if (delay? listings) @listings listings)
         key-paths (map (partial take 6) (keys-in listings))]

@@ -1,21 +1,13 @@
 (ns clj-irods.jargon
+  "This namespace contains the assorted caching and fetching functions wrapping
+  clj-jargon. In general, it should be used mostly by clj-irods.core, and not
+  by users directly."
   (:require [slingshot.slingshot :refer [try+]]
             [clj-jargon.item-info :as info]
             [clj-jargon.permissions :as perms]
             [clj-jargon.metadata :as metadata]
             [clj-irods.cache-tools :as cache])
   (:import [org.irods.jargon.core.exception FileNotFoundException]))
-
-;; This namespace is probably mostly going to be structured as sets of
-;; functions, one (private) using cached-or-do and calling to jargon (creating
-;; a delay that does the actual work), the second using cached-or-agent and
-;; calling the first function, that handles running things in appropriate
-;; thread pools and initiates actual realization of values, the third returning
-;; only if the value is already cached, and the last wrapping the second in
-;; another delay-deref to delay computation.
-
-;; Cache keys should be by path or ID followed by namespaced keywords
-;; (::whatever) so it's clear it corresponds to this namespace.
 
 (defn- stat*
   "Creates and caches a delay for a stat of the path. Run and deref in an
