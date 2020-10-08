@@ -8,10 +8,10 @@
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [medley "1.3.0"]
                  [org.cyverse/clojure-commons "2.8.3"]
-                 [org.cyverse/clj-icat-direct "2.8.8-SNAPSHOT"
+                 [org.cyverse/clj-icat-direct "2.8.8"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
-                 [org.cyverse/clj-jargon "2.8.11-SNAPSHOT"
+                 [org.cyverse/clj-jargon "2.8.11"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
                  [slingshot "0.12.2"]])

@@ -57,7 +57,7 @@
 (defmacro maybe-icat-transaction
   [use-icat & body]
   `(if ~use-icat
-     (icat-direct/with-icat-transaction span-sym#
+     (icat-direct/with-icat-transaction
        (do ~@body))
      (do ~@body)))
 
