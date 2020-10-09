@@ -4,6 +4,7 @@
             [slingshot.slingshot :refer [try+ throw+]]
 
             [clojure.tools.logging :as log]
+            [otel.otel :as otel]
 
             [clj-jargon.permissions :as jargon-perms]
 
@@ -77,26 +78,27 @@
   options passed in `cfg` and what's configured.  Bind this to the symbol
   passed in as `sym`. Recommended choice is to call it irods."
   [cfg sym & body]
-  `(let [id# (name (gensym "with-irods-"))
-         jargon-cfg# (or (:jargon-cfg ~cfg) (jargon-cfg (:jargon ~cfg)))
-         jargon-opts# (or (:jargon-opts ~cfg) {})
-         use-jargon# (boolean jargon-cfg#)
-         use-icat# (have-icat)
-         jargon-pool# (or (:combined-pool ~cfg) (:jargon-pool ~cfg) (make-threadpool (str id# "-jargon") (or (:jargon-pool-size ~cfg) 1)))
-         icat-pool#   (or (:combined-pool ~cfg) (:icat-pool ~cfg) (make-threadpool (str id# "-icat") (or (:icat-pool-size ~cfg) 5)))]
-     (try+
-       (maybe-icat-transaction use-icat#
-         (maybe-jargon use-jargon# jargon-cfg# jargon-opts# jargon#
-           (let [~sym {:jargon      jargon#
-                       :jargon-pool jargon-pool#
-                       :icat-pool   icat-pool#
-                       :has-jargon  use-jargon#
-                       :has-icat    use-icat#
-                       :cache       (atom {})}]
-             (do ~@body))))
-       (finally
-         (when-not (:retain-jargon-pool ~cfg) (.shutdown jargon-pool#))
-         (when-not (:retain-icat-pool ~cfg) (.shutdown icat-pool#))))))
+  `(otel/with-span [s# ["with-irods" {:kind :internal}]]
+     (let [id# (name (gensym "with-irods-"))
+           jargon-cfg# (or (:jargon-cfg ~cfg) (jargon-cfg (:jargon ~cfg)))
+           jargon-opts# (or (:jargon-opts ~cfg) {})
+           use-jargon# (boolean jargon-cfg#)
+           use-icat# (have-icat)
+           jargon-pool# (or (:combined-pool ~cfg) (:jargon-pool ~cfg) (make-threadpool (str id# "-jargon") (or (:jargon-pool-size ~cfg) 1)))
+           icat-pool#   (or (:combined-pool ~cfg) (:icat-pool ~cfg) (make-threadpool (str id# "-icat") (or (:icat-pool-size ~cfg) 5)))]
+       (try+
+         (maybe-icat-transaction use-icat#
+           (maybe-jargon use-jargon# jargon-cfg# jargon-opts# jargon#
+             (let [~sym {:jargon      jargon#
+                         :jargon-pool jargon-pool#
+                         :icat-pool   icat-pool#
+                         :has-jargon  use-jargon#
+                         :has-icat    use-icat#
+                         :cache       (atom {})}]
+               (do ~@body))))
+         (finally
+           (when-not (:retain-jargon-pool ~cfg) (.shutdown jargon-pool#))
+           (when-not (:retain-icat-pool ~cfg) (.shutdown icat-pool#)))))))
 
 ;; Framework functions to be used to prefer cached values and choose between available data sources.
 
