@@ -95,12 +95,19 @@
                          :has-jargon  use-jargon#
                          :has-icat    use-icat#
                          :cache       (atom {})}]
-               (do ~@body))))
+               (otel/with-span [s# ["with-irods body" {:kind :internal}]]
+                 (do ~@body)))))
          (finally
            (when-not (:retain-jargon-pool ~cfg) (.shutdown jargon-pool#))
            (when-not (:retain-icat-pool ~cfg) (.shutdown icat-pool#)))))))
 
 ;; Framework functions to be used to prefer cached values and choose between available data sources.
+
+(defmacro instrumented-delay
+  [& body]
+  `(otel/with-span [s# ["delay context" {:kind :internal}]]
+     (delay (with-open [_# (otel/span-scope s#)]
+              (otel/with-span [s2# ["delay body" {:kind :internal}]] ~@body)))))
 
 (defn- from-listing
   [cache? irods extract-fn user zone path]
@@ -111,20 +118,20 @@
             listing-item (when (delay? paged-folder-listing)
                            (get-from-listing (apply concat (icat/flatten-cached-listings @paged-folder-listing))))]
         (or
-          (when listing-item (delay (extract-fn listing-item)))
-          (when single-item  (delay (extract-fn @single-item)))
+          (when listing-item (instrumented-delay (extract-fn listing-item)))
+          (when single-item  (instrumented-delay (extract-fn @single-item)))
           nil))
       ;; better if we pass user group IDs in so we can get them from any source, rather than forcing the icat version specifically
       (when (:has-icat irods)
         (let [userids (icat/user-group-ids irods user zone)]
-          (delay (force userids) (extract-fn @(icat/get-item irods user zone path))))))))
+          (instrumented-delay (force userids) (extract-fn @(icat/get-item irods user zone path))))))))
 
 (defn- from-stat
   [cache? irods extract-fn path]
   (if cache?
     (let [jargon-stat (jargon/cached-stat irods path)]
-      (when jargon-stat (delay (extract-fn @jargon-stat))))
-    (when (:has-jargon irods) (delay (extract-fn @(jargon/stat irods path))))))
+      (when jargon-stat (instrumented-delay (extract-fn @jargon-stat))))
+    (when (:has-jargon irods) (instrumented-delay (extract-fn @(jargon/stat irods path))))))
 
 (defn- cached-or-get
   "Takes an irods instance and a set of function-call-like vectors, that is,
@@ -181,7 +188,7 @@
     [(fn [cache? irods path]
        (let [get-from-metadata (fn [metadata]
                                  (when-let [uuid-meta (first (filter #(= (:attr %) "ipc_UUID") @metadata))]
-                                   (delay (get uuid-meta :value))))]
+                                   (instrumented-delay (get uuid-meta :value))))]
            (when-let [metadata (if cache?
                                  (jargon/cached-get-metadata irods path)
                                  (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
@@ -198,7 +205,7 @@
     [(fn [cache? irods user path]
        (if cache?
          (jargon/cached-permission-for irods user path)
-         (delay
+         (instrumented-delay
            @(jargon/permission-for irods user path :known-type @(object-type irods user zone path)))))
      user path]))
 
@@ -223,7 +230,7 @@
     (if cached-range
       cached-range
       (let [userids (icat/user-group-ids irods user zone)]
-      (delay
+      (instrumented-delay
         (force userids)
         @(icat/paged-folder-listing irods user zone path
                                     :entity-type entity-type
@@ -241,7 +248,7 @@
    {:keys [entity-type info-types]
     :or {entity-type :any info-types []}}] ;; only support the actual filters, we don't care about sorting and limit/offset for this
   (let [cached (icat/filtered-cached-listings irods user zone path :entity-type entity-type :info-types info-types)]
-    (delay (get-in (first
+    (instrumented-delay (get-in (first
                      (if cached
                        (first (icat/flatten-cached-listings @cached))
                        (deref (icat/paged-folder-listing irods user zone path :entity-type entity-type :info-types info-types))))
