@@ -161,52 +161,58 @@
 (defn object-type
   "The type of the object. Returns a keyword, :file :dir or :none"
   [irods user zone path]
-  (let [listing-extract-fn (fn [item] (condp = (:type item) "dataobject" :file "collection" :dir :none))]
-    (from-stat-or-listing :type listing-extract-fn irods user zone path)))
+  (otel/with-span [s ["object-type"]]
+    (let [listing-extract-fn (fn [item] (condp = (:type item) "dataobject" :file "collection" :dir :none))]
+      (from-stat-or-listing :type listing-extract-fn irods user zone path))))
 
 (defn date-modified
   "The modified date of the path, as milliseconds since the epoch"
   [irods user zone path]
-  (from-stat-or-listing :date-modified (comp (partial * 1000) #(Integer/parseInt %) :modify_ts) irods user zone path))
+  (otel/with-span [s ["date-modified"]]
+    (from-stat-or-listing :date-modified (comp (partial * 1000) #(Integer/parseInt %) :modify_ts) irods user zone path)))
 
 (defn date-created
   "The created date of the path, as milliseconds since the epoch"
   [irods user zone path]
-  (from-stat-or-listing :date-created (comp (partial * 1000) #(Integer/parseInt %) :create_ts) irods user zone path))
+  (otel/with-span [s ["date-created"]]
+    (from-stat-or-listing :date-created (comp (partial * 1000) #(Integer/parseInt %) :create_ts) irods user zone path)))
 
 (defn file-size
   "The number of bytes of a path. 0 for folders."
   [irods user zone path]
-  (from-stat-or-listing :file-size :data_size irods user zone path))
+  (otel/with-span [s ["file-size"]]
+    (from-stat-or-listing :file-size :data_size irods user zone path)))
 
 (defn uuid
   "Get the UUID (via the ipc_UUID AVU) for a path."
   [irods user zone path]
-  (cached-or-get irods
-    [from-listing :uuid user zone path]
-    [(fn [cache? irods path]
-       (let [get-from-metadata (fn [metadata]
-                                 (when-let [uuid-meta (first (filter #(= (:attr %) "ipc_UUID") @metadata))]
-                                   (instrumented-delay (get uuid-meta :value))))]
-           (when-let [metadata (if cache?
-                                 (jargon/cached-get-metadata irods path)
-                                 (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
-             (or
-               (get-from-metadata metadata)
-               nil))))
-     path]))
+  (otel/with-span [s ["uuid"]]
+    (cached-or-get irods
+      [from-listing :uuid user zone path]
+      [(fn [cache? irods path]
+         (let [get-from-metadata (fn [metadata]
+                                   (when-let [uuid-meta (first (filter #(= (:attr %) "ipc_UUID") @metadata))]
+                                     (instrumented-delay (get uuid-meta :value))))]
+             (when-let [metadata (if cache?
+                                   (jargon/cached-get-metadata irods path)
+                                   (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
+               (or
+                 (get-from-metadata metadata)
+                 nil))))
+       path])))
 
 (defn permission
   "Permission for a user on a path. Returned as a keyword like :read :write :own, or nil"
   [irods user zone path]
-  (cached-or-get irods
-    [from-listing (comp jargon-perms/fmt-perm :access_type_id) user zone path]
-    [(fn [cache? irods user path]
-       (if cache?
-         (jargon/cached-permission-for irods user path)
-         (instrumented-delay
-           @(jargon/permission-for irods user path :known-type @(object-type irods user zone path)))))
-     user path]))
+  (otel/with-span [s ["permission"]]
+    (cached-or-get irods
+      [from-listing (comp jargon-perms/fmt-perm :access_type_id) user zone path]
+      [(fn [cache? irods user path]
+         (if cache?
+           (jargon/cached-permission-for irods user path)
+           (instrumented-delay
+             @(jargon/permission-for irods user path :known-type @(object-type irods user zone path)))))
+       user path])))
 
 (defn folder-listing
   "Get a listing. Because listings can be paged as well as filtered, this
@@ -217,27 +223,28 @@
   [irods user zone path &
    {:keys [entity-type sort-column sort-direction limit offset info-types]
     :or {entity-type :any sort-column :base-name sort-direction :desc limit 1000 offset 0 info-types []}}]
-  (let [cached (get-in
-                 (icat/merge-listings
-                   (icat/filtered-cached-listings irods user zone path
-                                                  :entity-type entity-type
-                                                  :sort-column sort-column
-                                                  :sort-direction sort-direction
-                                                  :info-types info-types))
-                 [entity-type info-types sort-column sort-direction]) ;; don't include limit/offset here
-        cached-range (and cached (icat/get-range cached limit offset))]
-    (if cached-range
-      cached-range
-      (let [userids (icat/user-group-ids irods user zone)]
-      (instrumented-delay
-        (force userids)
-        @(icat/paged-folder-listing irods user zone path
-                                    :entity-type entity-type
-                                    :sort-column sort-column
-                                    :sort-direction sort-direction
-                                    :limit limit
-                                    :offset offset
-                                    :info-types info-types))))))
+  (otel/with-span [s ["folder-listing"]]
+    (let [cached (get-in
+                   (icat/merge-listings
+                     (icat/filtered-cached-listings irods user zone path
+                                                    :entity-type entity-type
+                                                    :sort-column sort-column
+                                                    :sort-direction sort-direction
+                                                    :info-types info-types))
+                   [entity-type info-types sort-column sort-direction]) ;; don't include limit/offset here
+          cached-range (and cached (icat/get-range cached limit offset))]
+      (if cached-range
+        cached-range
+        (let [userids (icat/user-group-ids irods user zone)]
+        (instrumented-delay
+          (force userids)
+          @(icat/paged-folder-listing irods user zone path
+                                      :entity-type entity-type
+                                      :sort-column sort-column
+                                      :sort-direction sort-direction
+                                      :limit limit
+                                      :offset offset
+                                      :info-types info-types)))))))
 
 (defn items-in-folder
   "Count of items in folder. This uses a listing under the hood, and considers
@@ -246,9 +253,10 @@
   [irods user zone path &
    {:keys [entity-type info-types]
     :or {entity-type :any info-types []}}] ;; only support the actual filters, we don't care about sorting and limit/offset for this
-  (let [cached (icat/filtered-cached-listings irods user zone path :entity-type entity-type :info-types info-types)]
-    (instrumented-delay (get-in (first
-                     (if cached
-                       (first (icat/flatten-cached-listings @cached))
-                       (deref (icat/paged-folder-listing irods user zone path :entity-type entity-type :info-types info-types))))
-                   [:total_count]))))
+  (otel/with-span [s ["items-in-folder"]]
+    (let [cached (icat/filtered-cached-listings irods user zone path :entity-type entity-type :info-types info-types)]
+      (instrumented-delay (get-in (first
+                       (if cached
+                         (first (icat/flatten-cached-listings @cached))
+                         (deref (icat/paged-folder-listing irods user zone path :entity-type entity-type :info-types info-types))))
+                     [:total_count])))))
