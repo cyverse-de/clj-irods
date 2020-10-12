@@ -105,9 +105,8 @@
 
 (defmacro instrumented-delay
   [& body]
-  `(otel/with-span [s# ["delay context" {:kind :internal}]]
-     (delay (with-open [_# (otel/span-scope s#)]
-              (otel/with-span [s2# ["delay body" {:kind :internal}]] ~@body)))))
+  `(delay (with-open [_# (otel/span-scope (otel/current-span))]
+              (otel/with-span [s2# ["delay body" {:kind :internal}]] ~@body))))
 
 (defn- from-listing
   [cache? irods extract-fn user zone path]
