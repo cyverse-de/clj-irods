@@ -106,8 +106,9 @@
 
 (defmacro instrumented-delay
   [& body]
-  `(delay (with-open [_# (otel/span-scope (otel/current-span))]
-              (otel/with-span [s2# ["delay body" {:kind :internal}]] ~@body))))
+  `(let [ctxspan# (otel/current-span)]
+     (delay (with-open [_# (otel/span-scope ctxspan#)]
+              (otel/with-span [s2# ["delay body" {:kind :internal}]] ~@body)))))
 
 (defn- from-listing
   [cache? irods extract-fn user zone path]
@@ -123,15 +124,18 @@
           nil))
       ;; better if we pass user group IDs in so we can get them from any source, rather than forcing the icat version specifically
       (when (:has-icat irods)
-        (let [userids (icat/user-group-ids irods user zone)]
-          (instrumented-delay (force userids) (extract-fn @(icat/get-item irods user zone path))))))))
+        (let [userids (icat/user-group-ids irods user zone)
+              item (future (force userids) @(icat/get-item irods user zone path))]
+          (instrumented-delay (extract-fn @item)))))))
 
 (defn- from-stat
   [cache? irods extract-fn path]
   (if cache?
     (let [jargon-stat (jargon/cached-stat irods path)]
       (when jargon-stat (instrumented-delay (extract-fn @jargon-stat))))
-    (when (:has-jargon irods) (instrumented-delay (extract-fn @(jargon/stat irods path))))))
+    (when (:has-jargon irods)
+      (let [jargon-stat (jargon/stat irods path)]
+        (instrumented-delay (extract-fn @jargon-stat))))))
 
 (defn- cached-or-get
   "Takes an irods instance and a set of function-call-like vectors, that is,
