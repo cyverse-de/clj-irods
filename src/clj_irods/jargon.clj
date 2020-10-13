@@ -3,6 +3,7 @@
   clj-jargon. In general, it should be used mostly by clj-irods.core, and not
   by users directly."
   (:require [slingshot.slingshot :refer [try+]]
+            [clj-jargon.users :as users]
             [clj-jargon.item-info :as info]
             [clj-jargon.permissions :as perms]
             [clj-jargon.metadata :as metadata]
@@ -73,3 +74,22 @@
 (defn maybe-get-metadata
   [irods user path & {:keys [known-type]}]
   (delay (deref (get-metadata irods user path :known-type known-type))))
+
+(defn- get-user*
+  [irods user zone]
+  (->> [user zone ::user]
+       (cache/cached-or-do (:cache irods) #(users/user @(:jargon irods) user)))) ; not great that we don't pass the zone? idk
+
+(defn get-user
+  [irods user zone]
+  (->> [user zone ::user]
+       (cache/cached-or-agent (:cache irods) #(get-user* irods user zone) (:jargon-pool irods))))
+
+(defn cached-get-user
+  [irods user zone]
+  (->> [user zone ::user]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-get-user
+  [irods user zone]
+  (delay (deref (get-user irods user zone))))

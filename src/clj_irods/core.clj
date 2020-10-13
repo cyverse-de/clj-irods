@@ -265,3 +265,19 @@
                          (first (icat/flatten-cached-listings @cached))
                          (deref (icat/paged-folder-listing irods user zone path :entity-type entity-type :info-types info-types))))
                      [:total_count])))))
+
+(defn user-type
+  "The user type associated with a username. :none if the user does not exist, theoretically"
+  [irods username zone]
+  (otel/with-span [s ["user-type"]]
+    (cached-or-get irods
+      [(fn [cache? irods username zone]
+         (when-let [user (if cache?
+                           (icat/cached-user irods username zone)
+                           (icat/user irods username zone))]
+           (delay (if (:user_type_name @user) :user :none)))) username zone] ; for now mimicking jargon version that doesn't distingush
+      [(fn [cache? irods username zone]
+         (when-let [user (if cache?
+                           (jargon/cached-get-user irods username zone)
+                           (jargon/get-user irods username zone))]
+           (delay (:type @user)))) username zone])))

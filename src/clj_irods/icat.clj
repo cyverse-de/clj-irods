@@ -8,6 +8,26 @@
             [clojure.tools.logging :as log]
             [clj-icat-direct.icat :as icat]))
 
+;; user
+(defn- user*
+  [irods username zone]
+  (->> [username zone ::user]
+       (cache/cached-or-do (:cache irods) #(icat/user username zone))))
+
+(defn user
+  [irods username zone]
+  (->> [username zone ::user]
+       (cache/cached-or-agent (:cache irods) #(user* irods username zone) (:icat-pool irods))))
+
+(defn cached-user
+  [irods username zone]
+  (->> [username zone ::user]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-user
+  [irods username zone]
+  (delay (deref (user irods username zone))))
+
 ;; user-group-ids
 (defn- user-group-ids*
   [irods user zone]
