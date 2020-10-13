@@ -28,7 +28,6 @@
       :user-exists (let [[users zone] (rest v)]
                      (doseq [u (if (vector? users) users [users])]
                        (when (= @(rods/user-type irods u zone) :none)
-                         (log/info (:cache irods))
                          (throw+ {:error_code error/ERR_NOT_A_USER
                                   :user u}))))
       :path-exists (let [[paths user zone] (rest v)]
