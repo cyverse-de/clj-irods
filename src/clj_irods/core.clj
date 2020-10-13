@@ -56,8 +56,8 @@
       (do ~@body))))
 
 (defmacro maybe-icat-transaction
-  [use-icat & body]
-  `(if ~use-icat
+  [use-icat-transaction & body]
+  `(if ~use-icat-transaction
      (icat-direct/with-icat-transaction
        (do ~@body))
      (do ~@body)))
@@ -84,10 +84,11 @@
            jargon-opts# (or (:jargon-opts ~cfg) {})
            use-jargon# (boolean jargon-cfg#)
            use-icat# (have-icat)
+           use-icat-transaction# (and use-icat# (get ~cfg :use-icat-transaction true))
            jargon-pool# (or (:combined-pool ~cfg) (:jargon-pool ~cfg) (make-threadpool (str id# "-jargon") (or (:jargon-pool-size ~cfg) 1)))
            icat-pool#   (or (:combined-pool ~cfg) (:icat-pool ~cfg) (make-threadpool (str id# "-icat") (or (:icat-pool-size ~cfg) 5)))]
        (try+
-         (maybe-icat-transaction use-icat#
+         (maybe-icat-transaction use-icat-transaction#
            (maybe-jargon use-jargon# jargon-cfg# jargon-opts# jargon#
              (let [~sym {:jargon      jargon#
                          :jargon-pool jargon-pool#
