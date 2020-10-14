@@ -188,6 +188,28 @@
   (otel/with-span [s ["file-size"]]
     (from-stat-or-listing :file-size :data_size irods user zone path)))
 
+(defn object-avu
+  "Get a specific AVU or set of AVUs for a path, filtering on attribute, value, and/or unit.
+
+  Returns in [{:attr x :value y :unit z} ...] format (like clj-jargon.metadata/avu2map)"
+  [irods user zone path avu]
+  (otel/with-span [s ["object-avu"]]
+    (cached-or-get irods
+      [(fn [cache? irods path avu]
+         (let [match-avu (fn [to-test]
+                           (cond
+                             (and (:attr avu) (not (= (:attr to-test) (:attr avu))))    false
+                             (and (:value avu) (not (= (:value to-test) (:value avu)))) false
+                             (and (:unit avu) (not (= (:unit to-test) (:unit avu))))    false
+                             :else                                                      true))
+               get-avu (fn [metadata] (let [found (filter match-avu @metadata)]
+                                        (when (seq found)
+                                          (instrumented-delay found))))]
+             (when-let [metadata (if cache?
+                                   (jargon/cached-get-metadata irods path)
+                                   (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
+               (get-avu metadata)))) path avu])))
+
 (defn uuid
   "Get the UUID (via the ipc_UUID AVU) for a path."
   [irods user zone path]
