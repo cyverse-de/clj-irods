@@ -29,6 +29,7 @@
   function themselves, but if the cache is used directly outside this namespace
   the function might need to be used there."
   (:require [slingshot.slingshot :refer [try+ throw+]]
+            [otel.otel :as otel]
             [clojure.tools.logging :as log]))
 
 (defn rethrow-if-error
@@ -85,9 +86,10 @@
   (let [cached (get-in @cache ks)]
     (if (and (delay? cached) (realized? cached))
       (delay (rethrow-if-error @cached))
-      (let [ag (agent nil)]
-        (send-via pool ag (fn [n] @(action)))
-        (delay (await ag) (rethrow-if-error @ag))))))
+      (otel/with-span [s ["agent for calculation"]]
+        (let [ag (agent nil)]
+          (send-via pool ag (fn [n] (with-open [_ (otel/span-scope s)] @(action))))
+          (delay (await ag) (rethrow-if-error @ag)))))))
 
 (defn cached-or-nil
   "Takes a cache and location in the cache. If the location in the cache has
