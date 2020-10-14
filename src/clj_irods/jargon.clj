@@ -59,7 +59,7 @@
 (defn- get-metadata*
   [irods path & {:keys [known-type]}]
   (->> [path ::get-metadata]
-       (cache/cached-or-do (:cache irods) #(metadata/get-metadata @(:jargon irods) path))))
+       (cache/cached-or-do (:cache irods) #(metadata/get-metadata @(:jargon irods) path :known-type known-type))))
 
 (defn get-metadata
   [irods path & {:keys [known-type]}]
