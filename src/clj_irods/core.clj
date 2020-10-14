@@ -233,7 +233,7 @@
   [irods user zone path]
   (otel/with-span [s ["permission"]]
     (cached-or-get irods
-      [from-listing (comp jargon-perms/fmt-perm :access_type_id) user zone path]
+      [from-listing (fn [p] (if-let [p (:access_type_id p)] (jargon-perms/fmt-perm p) p)) user zone path]
       [(fn [cache? irods user path]
          (if cache?
            (jargon/cached-permission-for irods user path)
