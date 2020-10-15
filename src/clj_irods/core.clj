@@ -189,7 +189,6 @@
     (from-stat-or-listing :file-size :data_size irods user zone path)))
 
 (def uuid-attr "ipc_UUID")
-(def info-type-attr "ipc-filetype")
 
 (defn object-avu
   "Get a specific AVU or set of AVUs for a path, filtering on attribute, value, and/or unit.
@@ -198,11 +197,6 @@
   [irods user zone path avu]
   (otel/with-span [s ["object-avu"]]
     (cached-or-get irods
-      [(fn [cache? irods path user zone avu]
-         (when (and (contains? #{uuid-attr info-type-attr} (:attr avu))
-                    (nil? (:value avu))
-                    (nil? (:unit avu)))
-           (from-listing cache? irods (condp = (:attr avu) uuid-attr :uuid info-type-attr :info_type) user zone path))) path user zone avu]
       [(fn [cache? irods path user zone avu]
          (let [match-avu (fn [to-test]
                            (cond
