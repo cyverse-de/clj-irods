@@ -44,7 +44,6 @@
   "Takes an action and tries to execute it. If it throws an error, returns an
   object with the error at a known key."
   [action]
-  (log/info "resolving cached delay")
   (try+
     (action)
     (catch Object o
@@ -53,7 +52,6 @@
 (defn- assoc-in-empty
   [m ks v]
   (when-not (get-in m ks)
-    (log/info "updating cache:" ks)
     (assoc-in m ks v)))
 
 (defn- do-and-store
@@ -61,7 +59,6 @@
   cache at that location which will execute `do-or-error` with the provided
   action."
   [cache action ks]
-  (log/info "ensuring cache:" ks)
   (let [store (delay (do-or-error action))]
     (-> cache
         (swap! assoc-in-empty ks store)
@@ -82,11 +79,13 @@
   in the specified `pool`. `action` should return something that can be
   deref'd, and will be."
   [cache action pool ks]
-  (log/info "cache or agent:" ks)
   (let [cached (get-in @cache ks)]
-    (if (and (delay? cached) (realized? cached))
-      (delay (rethrow-if-error @cached))
+    (if (delay? cached) ;; here, only check that something's there, deref later is fine
+      (do
+        (log/info "got cached value:" ks)
+        (delay (rethrow-if-error @cached)))
       (otel/with-span [s ["agent for calculation"]]
+        (log/info "launching agent:" ks)
         (let [ag (agent nil)]
           (send-via pool ag (fn [n] (with-open [_ (otel/span-scope s)] @(action))))
           (delay (await ag) (rethrow-if-error @ag)))))))
@@ -96,7 +95,7 @@
   something and it's a realized delay, return it wrapped in rethrow-if-error
   and a new delay. Otherwise, return nil (*not* in a delay, for clarity)."
   [cache ks]
-  (log/info "try from cache:" ks)
   (let [cached (get-in @cache ks)]
-    (when (and (delay? cached) (realized? cached))
+    (when (and (delay? cached) (realized? cached)) ;; here, only allow realized delays, because we want to never do actual calculation
+      (log/info "got cached value:" ks)
       (delay (rethrow-if-error @cached)))))
