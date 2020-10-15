@@ -137,6 +137,17 @@
       (let [jargon-stat (jargon/stat irods path)]
         (instrumented-delay (extract-fn @jargon-stat))))))
 
+(declare object-type)
+(defn- from-jargon-metadata
+  [cache? irods extract-fn post-fn user zone path]
+  (let [get-from-metadata (fn [metadata]
+                            (when-let [extracted (extract-fn @metadata)]
+                              (instrumented-delay (post-fn extracted))))]
+    (when-let [metadata (if cache?
+                          (jargon/cached-get-metadata irods path)
+                          (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
+      (or (get-from-metadata metadata) nil))))
+
 (defn- cached-or-get
   "Takes an irods instance and a set of function-call-like vectors, that is,
   vectors where the first item is a function and the rest are arguments. These
@@ -218,17 +229,8 @@
   (otel/with-span [s ["uuid"]]
     (cached-or-get irods
       [from-listing :uuid user zone path]
-      [(fn [cache? irods path]
-         (let [get-from-metadata (fn [metadata]
-                                   (when-let [uuid-meta (first (filter #(= (:attr %) uuid-attr) @metadata))]
-                                     (instrumented-delay (get uuid-meta :value))))]
-             (when-let [metadata (if cache?
-                                   (jargon/cached-get-metadata irods path)
-                                   (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
-               (or
-                 (get-from-metadata metadata)
-                 nil))))
-       path])))
+      [from-jargon-metadata (fn [metadata] (first (filter #(= (:attr %) uuid-attr) metadata)))
+                            #(get % :value) user zone path])))
 
 (defn permission
   "Permission for a user on a path. Returned as a keyword like :read :write :own, or nil"
