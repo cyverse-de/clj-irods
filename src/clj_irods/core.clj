@@ -199,8 +199,6 @@
   (otel/with-span [s ["file-size"]]
     (from-stat-or-listing :file-size :data_size irods user zone path)))
 
-(def uuid-attr "ipc_UUID")
-
 (defn object-avu
   "Get a specific AVU or set of AVUs for a path, filtering on attribute, value, and/or unit.
 
@@ -223,6 +221,9 @@
                                    (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
                (get-avu metadata)))) path user zone avu])))
 
+(def uuid-attr "ipc_UUID")
+(def info-type-attr "ipc-filetype")
+
 (defn uuid
   "Get the UUID (via the ipc_UUID AVU) for a path."
   [irods user zone path]
@@ -230,6 +231,14 @@
     (cached-or-get irods
       [from-listing :uuid user zone path]
       [from-jargon-metadata (fn [metadata] (first (filter #(= (:attr %) uuid-attr) metadata)))
+                            #(get % :value) user zone path])))
+
+(defn info-type
+  [irods user zone path]
+  (otel/with-span [s ["info-type"]]
+    (cached-or-get irods
+      [from-listing :info_type user zone path]
+      [from-jargon-metadata (fn [metadata] (first (filter #(= (:attr %) info-type-attr) metadata)))
                             #(get % :value) user zone path])))
 
 (defn permission
