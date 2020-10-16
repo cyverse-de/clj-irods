@@ -2,8 +2,7 @@
   "This namespace contains the assorted caching and fetching functions wrapping
   clj-jargon. In general, it should be used mostly by clj-irods.core, and not
   by users directly."
-  (:require [slingshot.slingshot :refer [try+]]
-            [clj-jargon.users :as users]
+  (:require [clj-jargon.users :as users]
             [clj-jargon.item-info :as info]
             [clj-jargon.permissions :as perms]
             [clj-jargon.metadata :as metadata]

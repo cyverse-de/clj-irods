@@ -5,7 +5,6 @@
   (:require [medley.core :refer [dissoc-in]]
             [clj-irods.cache-tools :as cache]
             [clojure-commons.file-utils :as ft]
-            [clojure.tools.logging :as log]
             [clj-icat-direct.icat :as icat]))
 
 ;; user
@@ -96,7 +95,7 @@
              (map (fn [[k v]] [k (filter-listings* (dec depth) filters v)])
                   (if (nil? this-filter)
                     nested-map
-                    (filter (fn [[k v]] (= k this-filter)) nested-map))))))))
+                    (filter (fn [[k _v]] (= k this-filter)) nested-map))))))))
 
 (defn filtered-cached-listings
   [irods user zone path & {:keys [entity-type sort-column sort-direction limit offset info-types]}]

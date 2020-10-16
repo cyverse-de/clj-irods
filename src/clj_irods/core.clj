@@ -3,7 +3,6 @@
             [clj-icat-direct.icat :as icat-direct]
             [slingshot.slingshot :refer [try+ throw+]]
 
-            [clojure.tools.logging :as log]
             [otel.otel :as otel]
 
             [clj-jargon.permissions :as jargon-perms]

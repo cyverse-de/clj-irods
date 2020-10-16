@@ -87,7 +87,7 @@
       (otel/with-span [s ["agent for calculation"]]
         (log/info "launching agent:" ks)
         (let [ag (agent nil)]
-          (send-via pool ag (fn [n] (with-open [_ (otel/span-scope s)] @(action))))
+          (send-via pool ag (fn [_nil] (with-open [_ (otel/span-scope s)] @(action))))
           (delay (await ag) (rethrow-if-error @ag)))))))
 
 (defn cached-or-nil

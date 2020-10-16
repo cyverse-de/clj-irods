@@ -3,7 +3,6 @@
             [clojure.tools.logging :as log]
             [slingshot.slingshot :refer [throw+]]
             [otel.otel :as otel]
-            [clj-jargon.permissions :as jargon-perms]
             [clj-irods.core :as rods]))
 
 (defn validate
