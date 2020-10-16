@@ -107,10 +107,11 @@
         (when (seq cached)
           (delay cached))))))
 
-(defn- keys-in [m]
+(defn- keys-in
   "Returns a vector of vectors that are keys into a nested map, compatible with
   get-in, assoc-in, and our cache system. Along with `take` and `drop`, useful
   for merging and splitting cached data."
+  [m]
   (if (map? m)
     (vec
       (mapcat (fn [[k v]]
