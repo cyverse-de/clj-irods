@@ -8,12 +8,12 @@
   :plugins [[test2junit "1.2.2"]]
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [medley "1.3.0"]
-                 [org.cyverse/otel "0.2.0-SNAPSHOT"]
+                 [org.cyverse/otel "0.2.0"]
                  [org.cyverse/clojure-commons "2.8.3"]
-                 [org.cyverse/clj-icat-direct "2.8.9-SNAPSHOT"
+                 [org.cyverse/clj-icat-direct "2.8.9"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
-                 [org.cyverse/clj-jargon "2.8.12-SNAPSHOT"
+                 [org.cyverse/clj-jargon "2.8.12"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
                  [slingshot "0.12.2"]])
