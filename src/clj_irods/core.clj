@@ -3,7 +3,6 @@
             [clj-icat-direct.icat :as icat-direct]
             [slingshot.slingshot :refer [try+ throw+]]
 
-            [clojure.tools.logging :as log]
             [otel.otel :as otel]
 
             [clj-jargon.permissions :as jargon-perms]
@@ -137,6 +136,17 @@
       (let [jargon-stat (jargon/stat irods path)]
         (instrumented-delay (extract-fn @jargon-stat))))))
 
+(declare object-type)
+(defn- from-jargon-metadata
+  [cache? irods extract-fn post-fn user zone path]
+  (let [get-from-metadata (fn [metadata]
+                            (when-let [extracted (extract-fn @metadata)]
+                              (instrumented-delay (post-fn extracted))))]
+    (when-let [metadata (if cache?
+                          (jargon/cached-get-metadata irods path)
+                          (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
+      (or (get-from-metadata metadata) nil))))
+
 (defn- cached-or-get
   "Takes an irods instance and a set of function-call-like vectors, that is,
   vectors where the first item is a function and the rest are arguments. These
@@ -188,30 +198,54 @@
   (otel/with-span [s ["file-size"]]
     (from-stat-or-listing :file-size :data_size irods user zone path)))
 
+(defn object-avu
+  "Get a specific AVU or set of AVUs for a path, filtering on attribute, value, and/or unit.
+
+  Returns in [{:attr x :value y :unit z} ...] format (like clj-jargon.metadata/avu2map)"
+  [irods user zone path avu]
+  (otel/with-span [s ["object-avu"]]
+    (cached-or-get irods
+      [(fn [cache? irods path user zone avu]
+         (let [match-avu (fn [to-test]
+                           (cond
+                             (and (:attr avu) (not (= (:attr to-test) (:attr avu))))    false
+                             (and (:value avu) (not (= (:value to-test) (:value avu)))) false
+                             (and (:unit avu) (not (= (:unit to-test) (:unit avu))))    false
+                             :else                                                      true))
+               get-avu (fn [metadata] (let [found (filter match-avu @metadata)]
+                                        (when (seq found)
+                                          (instrumented-delay found))))]
+             (when-let [metadata (if cache?
+                                   (jargon/cached-get-metadata irods path)
+                                   (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
+               (get-avu metadata)))) path user zone avu])))
+
+(def uuid-attr "ipc_UUID")
+(def info-type-attr "ipc-filetype")
+
 (defn uuid
   "Get the UUID (via the ipc_UUID AVU) for a path."
   [irods user zone path]
   (otel/with-span [s ["uuid"]]
     (cached-or-get irods
       [from-listing :uuid user zone path]
-      [(fn [cache? irods path]
-         (let [get-from-metadata (fn [metadata]
-                                   (when-let [uuid-meta (first (filter #(= (:attr %) "ipc_UUID") @metadata))]
-                                     (instrumented-delay (get uuid-meta :value))))]
-             (when-let [metadata (if cache?
-                                   (jargon/cached-get-metadata irods path)
-                                   (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
-               (or
-                 (get-from-metadata metadata)
-                 nil))))
-       path])))
+      [from-jargon-metadata (fn [metadata] (first (filter #(= (:attr %) uuid-attr) metadata)))
+                            #(get % :value) user zone path])))
+
+(defn info-type
+  [irods user zone path]
+  (otel/with-span [s ["info-type"]]
+    (cached-or-get irods
+      [from-listing :info_type user zone path]
+      [from-jargon-metadata (fn [metadata] (first (filter #(= (:attr %) info-type-attr) metadata)))
+                            #(get % :value) user zone path])))
 
 (defn permission
   "Permission for a user on a path. Returned as a keyword like :read :write :own, or nil"
   [irods user zone path]
   (otel/with-span [s ["permission"]]
     (cached-or-get irods
-      [from-listing (comp jargon-perms/fmt-perm :access_type_id) user zone path]
+      [from-listing (fn [p] (if-let [p (:access_type_id p)] (jargon-perms/fmt-perm p) p)) user zone path]
       [(fn [cache? irods user path]
          (if cache?
            (jargon/cached-permission-for irods user path)
