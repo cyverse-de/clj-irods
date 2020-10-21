@@ -315,3 +315,13 @@
                            (jargon/cached-get-user irods username zone)
                            (jargon/get-user irods username zone))]
            (delay (:type @user)))) username zone])))
+
+(defn uuid->path
+  "The path associated with a uuid, or nil."
+  [irods uuid]
+  (otel/with-span [s ["uuid->path"]]
+    (cached-or-get irods
+      [(fn [cache? irods uuid]
+         (if cache?
+           (jargon/cached-get-path irods uuid)
+           (jargon/get-path irods uuid))) uuid])))

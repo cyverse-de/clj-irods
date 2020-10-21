@@ -3,6 +3,7 @@
   clj-jargon. In general, it should be used mostly by clj-irods.core, and not
   by users directly."
   (:require [clj-jargon.users :as users]
+            [clj-jargon.by-uuid :as uuid]
             [clj-jargon.item-info :as info]
             [clj-jargon.permissions :as perms]
             [clj-jargon.metadata :as metadata]
@@ -92,3 +93,22 @@
 (defn maybe-get-user
   [irods user zone]
   (delay (deref (get-user irods user zone))))
+
+(defn- get-path*
+  [irods uuid]
+  (->> [uuid ::get-path]
+       (cache/cached-or-do (:cache irods) #(uuid/get-path @(:jargon irods) uuid))))
+
+(defn get-path
+  [irods uuid]
+  (->> [uuid ::get-path]
+       (cache/cached-or-agent (:cache irods) #(get-path* irods uuid) (:jargon-pool irods))))
+
+(defn cached-get-path
+  [irods uuid]
+  (->> [uuid ::get-path]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-get-path
+  [irods uuid]
+  (delay (deref (get-path irods uuid))))
