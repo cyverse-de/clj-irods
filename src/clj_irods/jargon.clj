@@ -96,17 +96,17 @@
 
 (defn- get-path*
   [irods uuid]
-  (->> [uuid ::get-path]
+  (->> [(str uuid) ::get-path]
        (cache/cached-or-do (:cache irods) #(uuid/get-path @(:jargon irods) uuid))))
 
 (defn get-path
   [irods uuid]
-  (->> [uuid ::get-path]
+  (->> [(str uuid) ::get-path]
        (cache/cached-or-agent (:cache irods) #(get-path* irods uuid) (:jargon-pool irods))))
 
 (defn cached-get-path
   [irods uuid]
-  (->> [uuid ::get-path]
+  (->> [(str uuid) ::get-path]
        (cache/cached-or-nil (:cache irods))))
 
 (defn maybe-get-path
