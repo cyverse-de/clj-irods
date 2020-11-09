@@ -144,7 +144,8 @@
                               (instrumented-delay (post-fn extracted))))]
     (when-let [metadata (if cache?
                           (jargon/cached-get-metadata irods path)
-                          (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
+                          (when (:has-jargon irods)
+                            (jargon/get-metadata irods path :known-type @(object-type irods user zone path))))]
       (or (get-from-metadata metadata) nil))))
 
 (defn- cached-or-get
@@ -217,7 +218,8 @@
                                           (instrumented-delay found))))]
              (when-let [metadata (if cache?
                                    (jargon/cached-get-metadata irods path)
-                                   (jargon/get-metadata irods path :known-type @(object-type irods user zone path)))]
+                                   (when (:has-jargon irods)
+                                     (jargon/get-metadata irods path :known-type @(object-type irods user zone path))))]
                (get-avu metadata)))) path user zone avu])))
 
 (def uuid-attr "ipc_UUID")
@@ -249,8 +251,8 @@
       [(fn [cache? irods user path]
          (if cache?
            (jargon/cached-permission-for irods user path)
-           (instrumented-delay
-             @(jargon/permission-for irods user path :known-type @(object-type irods user zone path)))))
+           (when (:has-jargon irods) (instrumented-delay
+             @(jargon/permission-for irods user path :known-type @(object-type irods user zone path))))))
        user path])))
 
 (defn folder-listing
@@ -274,16 +276,16 @@
           cached-range (and cached (icat/get-range cached limit offset))]
       (if cached-range
         cached-range
-        (let [userids (icat/user-group-ids irods user zone)]
-        (instrumented-delay
-          (force userids)
-          @(icat/paged-folder-listing irods user zone path
-                                      :entity-type entity-type
-                                      :sort-column sort-column
-                                      :sort-direction sort-direction
-                                      :limit limit
-                                      :offset offset
-                                      :info-types info-types)))))))
+        (when (:has-icat irods) (let [userids (icat/user-group-ids irods user zone)]
+          (instrumented-delay
+            (force userids)
+            @(icat/paged-folder-listing irods user zone path
+                                        :entity-type entity-type
+                                        :sort-column sort-column
+                                        :sort-direction sort-direction
+                                        :limit limit
+                                        :offset offset
+                                        :info-types info-types))))))))
 
 (defn items-in-folder
   "Count of items in folder. This uses a listing under the hood, and considers
@@ -297,7 +299,7 @@
       (instrumented-delay (get-in (first
                        (if cached
                          (first (icat/flatten-cached-listings @cached))
-                         (deref (icat/paged-folder-listing irods user zone path :entity-type entity-type :info-types info-types))))
+                         (when (:has-icat irods) (deref (icat/paged-folder-listing irods user zone path :entity-type entity-type :info-types info-types)))))
                      [:total_count])))))
 
 (defn user-type
