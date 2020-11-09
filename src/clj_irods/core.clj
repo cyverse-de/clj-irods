@@ -308,12 +308,14 @@
       [(fn [cache? irods username zone]
          (when-let [user (if cache?
                            (icat/cached-user irods username zone)
-                           (icat/user irods username zone))]
+                           (when (:has-icat irods)
+                             (icat/user irods username zone)))]
            (delay (if (:user_type_name @user) :user :none)))) username zone] ; for now mimicking jargon version that doesn't distingush
       [(fn [cache? irods username zone]
          (when-let [user (if cache?
                            (jargon/cached-get-user irods username zone)
-                           (jargon/get-user irods username zone))]
+                           (when (:has-jargon irods)
+                             (jargon/get-user irods username zone)))]
            (delay (:type @user)))) username zone])))
 
 (defn uuid->path
@@ -323,5 +325,11 @@
     (cached-or-get irods
       [(fn [cache? irods uuid]
          (if cache?
+           (icat/cached-path-for-uuid irods uuid)
+           (when (:has-icat irods)
+             (icat/path-for-uuid irods uuid)))) uuid]
+      [(fn [cache? irods uuid]
+         (if cache?
            (jargon/cached-get-path irods uuid)
-           (jargon/get-path irods uuid))) uuid])))
+           (when (:has-jargon irods)
+             (jargon/get-path irods uuid)))) uuid])))

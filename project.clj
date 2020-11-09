@@ -10,7 +10,7 @@
                  [medley "1.3.0"]
                  [org.cyverse/otel "0.2.0"]
                  [org.cyverse/clojure-commons "2.8.3"]
-                 [org.cyverse/clj-icat-direct "2.8.9"
+                 [org.cyverse/clj-icat-direct "2.8.10-SNAPSHOT"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
                  [org.cyverse/clj-jargon "2.8.12"

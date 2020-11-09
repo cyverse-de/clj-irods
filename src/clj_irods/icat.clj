@@ -254,3 +254,23 @@
 (defn maybe-get-item
   [irods user zone path & {:keys [user-group-ids]}]
   (delay (deref (get-item irods user zone path :user-group-ids user-group-ids))))
+
+;; path-for-uuid
+(defn- path-for-uuid*
+  [irods uuid]
+    (->> [uuid ::path-for-uuid]
+         (cache/cached-or-do (:cache irods) #(icat/path-for-uuid uuid))))
+
+(defn path-for-uuid
+  [irods uuid]
+  (->> [uuid ::path-for-uuid]
+       (cache/cached-or-agent (:cache irods) #(path-for-uuid* irods uuid) (:icat-pool irods))))
+
+(defn cached-path-for-uuid
+  [irods uuid]
+  (->> [uuid ::path-for-uuid]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-path-for-uuid
+  [irods uuid]
+  (delay (deref (path-for-uuid uuid))))
