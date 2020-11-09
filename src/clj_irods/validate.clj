@@ -28,12 +28,12 @@
       (condp = (first v)
         :user-exists (let [[users zone] (rest v)]
                        (doseq [u (if (vector? users) users [users])]
-                         (when (= @(rods/user-type irods u zone) :none)
+                         (when (or (nil? u) (= @(rods/user-type irods u zone) :none))
                            (throw+ {:error_code error/ERR_NOT_A_USER
                                     :user u}))))
         :path-exists (let [[paths user zone] (rest v)]
                        (doseq [p (if (vector? paths) paths [paths])]
-                         (when (= @(rods/object-type irods user zone p) :none)
+                         (when (or (nil? p) (= @(rods/object-type irods user zone p) :none))
                            (throw+ {:error_code error/ERR_DOES_NOT_EXIST
                                     :path p}))))
         :path-is-file (let [[paths user zone] (rest v)]
