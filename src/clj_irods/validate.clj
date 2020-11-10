@@ -36,6 +36,11 @@
                          (when (or (nil? p) (= @(rods/object-type irods user zone p) :none))
                            (throw+ {:error_code error/ERR_DOES_NOT_EXIST
                                     :path p}))))
+        :path-not-exists (let [[paths user zone] (rest v)]
+                           (doseq [p (if (vector? paths) paths [paths])]
+                             (when-not (= @(rods/object-type irods user zone p) :none)
+                               (throw+ {:error_code error/ERR_EXISTS
+                                        :path p}))))
         :path-is-file (let [[paths user zone] (rest v)]
                         (doseq [p (if (vector? paths) paths [paths])]
                           (when-not (= @(rods/object-type irods user zone p) :file)
