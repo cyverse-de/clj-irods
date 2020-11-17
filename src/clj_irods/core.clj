@@ -7,6 +7,7 @@
 
             [clj-jargon.permissions :as jargon-perms]
 
+            [clj-irods.cache-tools :as cache]
             [clj-irods.jargon :as jargon]
             [clj-irods.icat :as icat]
             [clojure-commons.file-utils :as ft])
@@ -174,6 +175,13 @@
     [from-stat stat-extract-fn path]))
 
 ;; Actual API functions
+(defn invalidate
+  "Removes a provided path, uuid, user, etc. from the cache. Can be either a single key or a vector path into the cache.
+
+  Generally, pass a path, uuid, or username."
+  [irods to-invalidate]
+  (cache/clear-cache-prefix (:cache irods) (if (vector? to-invalidate) to-invalidate [to-invalidate])))
+
 (defn object-type
   "The type of the object. Returns a keyword, :file :dir or :none"
   [irods user zone path]
