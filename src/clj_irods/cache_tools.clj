@@ -29,6 +29,7 @@
   function themselves, but if the cache is used directly outside this namespace
   the function might need to be used there."
   (:require [slingshot.slingshot :refer [try+ throw+]]
+            [medley.core :refer [dissoc-in]]
             [otel.otel :as otel]
             [clojure.tools.logging :as log]))
 
@@ -99,3 +100,8 @@
     (when (and (delay? cached) (realized? cached)) ;; here, only allow realized delays, because we want to never do actual calculation
       (log/info "got cached value:" ks)
       (delay (rethrow-if-error @cached)))))
+
+(defn clear-cache-prefix
+  "Takes a cache and a cache prefix, clearing that prefix."
+  [cache ks]
+  (swap! cache dissoc-in ks))
