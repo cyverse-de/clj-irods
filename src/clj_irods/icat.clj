@@ -273,4 +273,4 @@
 
 (defn maybe-path-for-uuid
   [irods uuid]
-  (delay (deref (path-for-uuid uuid))))
+  (delay (deref (path-for-uuid irods uuid))))
