@@ -101,6 +101,17 @@
       (log/info "got cached value:" ks)
       (delay (rethrow-if-error @cached)))))
 
+(defn cached-values
+  "Takes a cache, a function from ID to cache location and a list of IDs. A map
+   with identifiers for keys and delays containing cached values is returned.
+   In each case, we wrap the resulting value in rethrow-if-error and a new
+   delay."
+  [cache location-fn ids]
+  (->> (mapv (juxt identity (comp (partial get-in @cache) location-fn)) ids)
+       (filter (comp (every-pred delay? realized?) second))
+       (map (fn [[id cached]] [id (delay (rethrow-if-error @cached))]))
+       (into {})))
+
 (defn clear-cache-prefix
   "Takes a cache and a cache prefix, clearing that prefix."
   [cache ks]
