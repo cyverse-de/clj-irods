@@ -7,7 +7,8 @@
             [clj-jargon.item-info :as info]
             [clj-jargon.permissions :as perms]
             [clj-jargon.metadata :as metadata]
-            [clj-irods.cache-tools :as cache])
+            [clj-irods.cache-tools :as cache]
+            [clojure.tools.logging :as log])
   (:import [org.irods.jargon.core.exception FileNotFoundException]))
 
 (defn- stat*
@@ -112,3 +113,13 @@
 (defn maybe-get-path
   [irods uuid]
   (delay (deref (get-path irods uuid))))
+
+;; get-paths
+(defn get-paths
+  [irods uuids]
+  (cache/cached-or-retrieved-values
+   (:cache irods)
+   (fn [ids] (uuid/get-paths @(:jargon irods) ids))
+   (:jargon-pool irods)
+   #(vector (str %) ::path-for-uuid)
+   uuids))

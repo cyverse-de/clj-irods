@@ -14,7 +14,7 @@
   `cached-or-do`. It will run what it is passed in an agent (in the passed-in
   pool).
 
-  cached-or-nil: this function is a best used for a secondary API used to fetch
+  cached-or-nil: this function is best used for a secondary API used to fetch
   results, but only if they're already in the cache. It takes only the cache
   and a key, since it does no calculation of values. It will return a
   deref-able thing (a delay, generally) when there is a cached value, or nil
@@ -29,9 +29,16 @@
   function themselves, but if the cache is used directly outside this namespace
   the function might need to be used there."
   (:require [slingshot.slingshot :refer [try+ throw+]]
-            [medley.core :refer [dissoc-in]]
+            [medley.core :refer [dissoc-in map-kv-vals]]
             [otel.otel :as otel]
+            [clojure.set :as set]
             [clojure.tools.logging :as log]))
+
+(defn- action-runner
+  [scope action]
+  (fn [_nil]
+    (with-open [_ (otel/span-scope scope)]
+      @(action))))
 
 (defn rethrow-if-error
   "Takes a return value. If it is an error as created by `do-or-error`,
@@ -44,9 +51,9 @@
 (defn- do-or-error
   "Takes an action and tries to execute it. If it throws an error, returns an
   object with the error at a known key."
-  [action]
+  [action & args]
   (try+
-    (action)
+    (apply action args)
     (catch Object o
       {::error o})))
 
@@ -88,7 +95,7 @@
       (otel/with-span [s ["agent for calculation"]]
         (log/info "launching agent:" ks)
         (let [ag (agent nil)]
-          (send-via pool ag (fn [_nil] (with-open [_ (otel/span-scope s)] @(action))))
+          (send-via pool ag (action-runner s action))
           (delay (await ag) (rethrow-if-error @ag)))))))
 
 (defn cached-or-nil
@@ -101,16 +108,34 @@
       (log/info "got cached value:" ks)
       (delay (rethrow-if-error @cached)))))
 
-(defn cached-values
-  "Takes a cache, a function from ID to cache location and a list of IDs. A map
-   with identifiers for keys and delays containing cached values is returned.
-   In each case, we wrap the resulting value in rethrow-if-error and a new
-   delay."
+(defn- get-cached-values
   [cache location-fn ids]
   (->> (mapv (juxt identity (comp (partial get-in @cache) location-fn)) ids)
-       (filter (comp (every-pred delay? realized?) second))
+       (filter (comp delay? second))
        (map (fn [[id cached]] [id (delay (rethrow-if-error @cached))]))
        (into {})))
+
+(defn- store-retrieved-values
+  [cache location-fn ag]
+  (->> (for [[id value] (rethrow-if-error @ag)]
+         (let [ks (location-fn id)]
+           [id (get-in (swap! cache assoc-in-empty ks (delay value)) ks)]))
+       (into {})))
+
+(defn cached-or-retrieved-values
+  [cache action pool location-fn ids]
+  (let [cached       (get-cached-values cache location-fn ids)
+        uncached-ids (set/difference (set ids) (set (keys cached)))
+        deref-vals   (fn [m] (map-kv-vals (fn [_ v] @v) m))]
+    (if-not (empty? uncached-ids)
+      (otel/with-span [s ["agent for retrieving multiple values"]]
+        (let [ag (agent nil)]
+          (send-via pool ag (fn [_nil] (with-open [_ (otel/span-scope s)] (do-or-error action uncached-ids))))
+          (delay
+            (await ag)
+            (->> (merge cached (store-retrieved-values cache location-fn ag))
+                 deref-vals))))
+      (delay (deref-vals cached)))))
 
 (defn clear-cache-prefix
   "Takes a cache and a cache prefix, clearing that prefix."

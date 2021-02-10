@@ -343,3 +343,9 @@
            (jargon/cached-get-path irods uuid)
            (when (:has-jargon irods)
              (jargon/get-path irods uuid)))) uuid])))
+
+(defn uuids->paths
+  "The paths associated with multiple uuids, returned as a map from uuid to
+  a delay containing the corresponding path. UUIDs referring to paths that
+  don't exist will be omitted from the results."
+  [irods uuids])

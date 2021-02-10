@@ -274,3 +274,13 @@
 (defn maybe-path-for-uuid
   [irods uuid]
   (delay (deref (path-for-uuid irods uuid))))
+
+;; paths-for-uuids
+(defn paths-for-uuids
+  [irods uuids]
+  (cache/cached-or-retrieved-values
+   (:cache irods)
+   icat/paths-for-uuids
+   (:icat-pool irods)
+   #(vector (str %) ::path-for-uuid)
+   uuids))
