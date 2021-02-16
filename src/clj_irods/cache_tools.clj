@@ -34,11 +34,9 @@
             [clojure.set :as set]
             [clojure.tools.logging :as log]))
 
-(defn- action-runner
-  [scope action]
-  (fn [_nil]
-    (with-open [_ (otel/span-scope scope)]
-      @(action))))
+(defmacro otel-with-subspan [[s] & body]
+  `(with-open [_# (otel/span-scope ~s)]
+     ~@body))
 
 (defn rethrow-if-error
   "Takes a return value. If it is an error as created by `do-or-error`,
@@ -95,7 +93,7 @@
       (otel/with-span [s ["agent for calculation"]]
         (log/info "launching agent:" ks)
         (let [ag (agent nil)]
-          (send-via pool ag (action-runner s action))
+          (send-via pool ag (fn [_nil] (otel-with-subspan [s] @(action))))
           (delay (await ag) (rethrow-if-error @ag)))))))
 
 (defn cached-or-nil
@@ -107,10 +105,6 @@
     (when (and (delay? cached) (realized? cached)) ;; here, only allow realized delays, because we want to never do actual calculation
       (log/info "got cached value:" ks)
       (delay (rethrow-if-error @cached)))))
-
-(defmacro otel-with-subspan [[s] & body]
-  `(with-open [_# (otel/span-scope ~s)]
-     ~@body))
 
 (defn- get-cached-values
   [cache location-fn ids]
