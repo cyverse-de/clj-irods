@@ -108,6 +108,10 @@
       (log/info "got cached value:" ks)
       (delay (rethrow-if-error @cached)))))
 
+(defmacro otel-with-subspan [[s] & body]
+  `(with-open [_# (otel/span-scope ~s)]
+     ~@body))
+
 (defn- get-cached-values
   [cache location-fn ids]
   (->> (mapv (juxt identity (comp (partial get-in @cache) location-fn)) ids)
@@ -115,11 +119,12 @@
        (map (fn [[id cached]] [id (delay (rethrow-if-error @cached))]))
        (into {})))
 
-(defn- store-retrieved-values
-  [cache location-fn ag]
-  (->> (for [[id value] (rethrow-if-error @ag)]
-         (let [ks (location-fn id)]
-           [id (get-in (swap! cache assoc-in-empty ks (delay value)) ks)]))
+(defn- store-multi
+  [cache location-fn ids ag]
+  (->> (for [id ids]
+         (let [ks          (location-fn id)
+               cache-entry (delay (await ag) (get (rethrow-if-error @ag) id))]
+           [id (get-in (swap! cache assoc-in-empty ks cache-entry) ks)]))
        (into {})))
 
 (defn cached-or-retrieved-values
@@ -129,12 +134,9 @@
         deref-vals   (fn [m] (map-kv-vals (fn [_ v] @v) m))]
     (if-not (empty? uncached-ids)
       (otel/with-span [s ["agent for retrieving multiple values"]]
-        (let [ag (agent nil)]
-          (send-via pool ag (fn [_nil] (with-open [_ (otel/span-scope s)] (do-or-error action uncached-ids))))
-          (delay
-            (await ag)
-            (->> (merge cached (store-retrieved-values cache location-fn ag))
-                 deref-vals))))
+        (let [ag  (agent nil)]
+          (send-via pool ag (fn [_nil] (otel-with-subspan [s] (do-or-error action uncached-ids))))
+          (delay (deref-vals (merge cached (store-multi cache location-fn ids ag))))))
       (delay (deref-vals cached)))))
 
 (defn clear-cache-prefix
