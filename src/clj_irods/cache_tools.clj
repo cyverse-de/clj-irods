@@ -128,9 +128,10 @@
         deref-vals   (fn [m] (map-kv-vals (fn [_ v] @v) m))]
     (if-not (empty? uncached-ids)
       (otel/with-span [s ["agent for retrieving multiple values"]]
-        (let [ag  (agent nil)]
+        (let [ag (agent nil)]
           (send-via pool ag (fn [_nil] (otel-with-subspan [s] (do-or-error action uncached-ids))))
-          (delay (deref-vals (merge cached (store-multi cache location-fn ids ag))))))
+          (let [stored-delays (store-multi cache location-fn ids ag)]
+            (delay (deref-vals (merge cached stored-delays)))))
       (delay (deref-vals cached)))))
 
 (defn clear-cache-prefix
