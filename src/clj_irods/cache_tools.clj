@@ -131,7 +131,7 @@
         (let [ag (agent nil)]
           (send-via pool ag (fn [_nil] (otel-with-subspan [s] (do-or-error action uncached-ids))))
           (let [stored-delays (store-multi cache location-fn ids ag)]
-            (delay (deref-vals (merge cached stored-delays)))))
+            (delay (deref-vals (merge cached stored-delays))))))
       (delay (deref-vals cached)))))
 
 (defn clear-cache-prefix

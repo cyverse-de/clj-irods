@@ -83,7 +83,7 @@
            jargon-cfg# (or (:jargon-cfg ~cfg) (jargon-cfg (:jargon ~cfg)))
            jargon-opts# (or (:jargon-opts ~cfg) {})
            use-jargon# (boolean jargon-cfg#)
-           use-icat# (have-icat)
+           use-icat# (and (:use-icat ~cfg true) (have-icat))
            use-icat-transaction# (and use-icat# (get ~cfg :use-icat-transaction true))
            jargon-pool# (or (:combined-pool ~cfg) (:jargon-pool ~cfg) (make-threadpool (str id# "-jargon") (or (:jargon-pool-size ~cfg) 1)))
            icat-pool#   (or (:combined-pool ~cfg) (:icat-pool ~cfg) (make-threadpool (str id# "-icat") (or (:icat-pool-size ~cfg) 5)))]
@@ -346,6 +346,13 @@
 
 (defn uuids->paths
   "The paths associated with multiple uuids, returned as a map from uuid to
-  a delay containing the corresponding path. UUIDs referring to paths that
-  don't exist will be omitted from the results."
-  [irods uuids])
+  the corresponding path or nil"
+  [irods uuids]
+  (otel/with-span [s ["uuids->paths"]]
+    (cached-or-get irods
+      [(fn [cache? irods uuids]
+         (when (:has-icat irods)
+           (icat/paths-for-uuids irods uuids))) uuids]
+      [(fn [cache? irods uuids]
+         (when (:has-jargon irods)
+           (jargon/get-paths irods uuids))) uuids])))
