@@ -11,6 +11,13 @@
   Each validation is a vector of a keyword (identifying the kind of validation)
   and any relevant arguments. The validations will be run in the provided order.
 
+  Validations that are equal to nil will be ignored. This makes it easier for callers to add
+  conditional validations as in:
+
+      (validate irods
+                [:user-exists user zone]
+                (when validate-path? [:path-exists path user zone]))
+
   Available validations and their arguments:
 
   :user-exists (string or vector, users to check), (string zone)
@@ -24,7 +31,7 @@
   [irods & validations]
 
   (otel/with-span [s ["validate"]]
-    (doseq [v validations]
+    (doseq [v (remove nil? validations)]
       (condp = (first v)
         :user-exists (let [[users zone] (rest v)]
                        (doseq [u (if (vector? users) users [users])]
