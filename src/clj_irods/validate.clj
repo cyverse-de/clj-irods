@@ -40,49 +40,49 @@
   (otel/with-span [s ["validate"]]
     (doseq [v (remove nil? validations)]
       (condp = (first v)
-        :user-exists (let [[users zone] (rest v)]
-                       (doseq [u (if (vector? users) users [users])]
-                         (when (or (nil? u) (= @(rods/user-type irods u zone) :none))
-                           (throw+ {:error_code error/ERR_NOT_A_USER
-                                    :user u}))))
-        :path-exists (let [[paths user zone] (rest v)]
-                       (doseq [p (if (vector? paths) paths [paths])]
-                         (when (or (nil? p) (= @(rods/object-type irods user zone p) :none))
-                           (throw+ {:error_code error/ERR_DOES_NOT_EXIST
-                                    :path p}))))
-        :path-not-exists (let [[paths user zone] (rest v)]
-                           (doseq [p (if (vector? paths) paths [paths])]
-                             (when-not (= @(rods/object-type irods user zone p) :none)
-                               (throw+ {:error_code error/ERR_EXISTS
-                                        :path p}))))
-        :path-is-file (let [[paths user zone] (rest v)]
-                        (doseq [p (if (vector? paths) paths [paths])]
-                          (when-not (= @(rods/object-type irods user zone p) :file)
-                            (throw+ {:error_code error/ERR_NOT_A_FILE
-                                     :path p}))))
-        :path-is-dir (let [[paths user zone] (rest v)]
-                       (doseq [p (if (vector? paths) paths [paths])]
-                         (when-not (= @(rods/object-type irods user zone p) :dir)
-                           (throw+ {:error_code error/ERR_NOT_A_FOLDER
-                                    :path p}))))
-        :path-readable (let [[paths user zone] (rest v)]
-                         (doseq [p (if (vector? paths) paths [paths])]
-                           (when-not (contains? #{:read :write :own} @(rods/permission irods user zone p))
-                             (throw+ {:error_code error/ERR_NOT_READABLE
-                                      :path p
-                                      :user user}))))
-        :path-writeable (let [[paths user zone] (rest v)]
-                         (doseq [p (if (vector? paths) paths [paths])]
-                           (when-not (contains? #{:write :own} @(rods/permission irods user zone p))
-                             (throw+ {:error_code error/ERR_NOT_READABLE
-                                      :path p
-                                      :user user}))))
-        :path-owned (let [[paths user zone] (rest v)]
-                         (doseq [p (if (vector? paths) paths [paths])]
-                           (when-not (= :own @(rods/permission irods user zone p))
-                             (throw+ {:error_code error/ERR_NOT_READABLE
-                                      :path p
-                                      :user user}))))
+        :user-exists (let [[users zone] (rest v)
+                           user-missing? (fn [u] (or (nil? u) (= @(rods/user-type irods u zone) :none)))]
+                       (when-let [missing-users (seq (filter user-missing? (to-sequence users)))]
+                         (throw+ {:error_code error/ERR_NOT_A_USER
+                                  :users missing-users})))
+        :path-exists (let [[paths user zone] (rest v)
+                           path-missing? (fn [p] (or (nil? p) (= @(rods/object-type irods user zone p) :none)))]
+                       (when-let [missing-paths (seq (filter path-missing? (to-sequence paths)))]
+                         (throw+ {:error_code error/ERR_DOES_NOT_EXIST
+                                  :paths missing-paths})))
+        :path-not-exists (let [[paths user zone] (rest v)
+                               path-exists? (fn [p] (not= @(rods/object-type irods user zone p) :none))]
+                           (when-let [extant-paths (seq (filter path-exists? (to-sequence paths)))]
+                             (throw+ {:error_code error/ERR_EXISTS
+                                      :paths extant-paths})))
+        :path-is-file (let [[paths user zone] (rest v)
+                            path-not-file? (fn [p] (not= @(rods/object-type irods user zone p) :file))]
+                        (when-let [invalid-paths (seq (filter path-not-file? (to-sequence paths)))]
+                          (throw+ {:error_code error/ERR_NOT_A_FILE
+                                   :paths invalid-paths})))
+        :path-is-dir (let [[paths user zone] (rest v)
+                           path-not-dir? (fn [p] (not= @(rods/object-type irods user zone p) :dir))]
+                       (when-let [invalid-paths (seq (filter path-not-dir? (to-sequence paths)))]
+                         (throw+ {:error_code error/ERR_NOT_A_FOLDER
+                                  :paths invalid-paths})))
+        :path-readable (let [[paths user zone] (rest v)
+                             readable? (fn [p] (contains? #{:read :write :own} @(rods/permission irods user zone p)))]
+                         (when-let [unreadable-paths (seq (remove readable? (to-sequence paths)))]
+                           (throw+ {:error_code error/ERR_NOT_READABLE
+                                    :paths unreadable-paths
+                                    :user user})))
+        :path-writeable (let [[paths user zone] (rest v)
+                              writeable? (fn [p] (contains? #{:write :own} @(rods/permission irods user zone p)))]
+                          (when-let [unwriteable-paths (seq (remove writeable? (to-sequence paths)))]
+                            (throw+ {:error_code error/ERR_NOT_WRITEABLE
+                                     :paths unwriteable-paths
+                                     :user user})))
+        :path-owned (let [[paths user zone] (rest v)
+                          owner? (fn [p] (= :own @(rods/permission irods user zone p)))]
+                      (when-let [unowned-paths (seq (remove owner? (to-sequence paths)))]
+                        (throw+ {:error_code error/ERR_NOT_OWNER
+                                 :paths unowned-paths
+                                 :user user})))
         :uuid-exists (let [[uuids] (rest v)
                            uuids (to-sequence uuids)
                            path-map @(rods/uuids->paths irods uuids)]
