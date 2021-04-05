@@ -5,6 +5,12 @@
             [otel.otel :as otel]
             [clj-irods.core :as rods]))
 
+(defn- to-sequence
+  "Returns a sequence of values for the given argument. If the argument is sequential then it's simply returned.
+  Otherwise, a single-element vector containing the argument is returned."
+  [v]
+  (if (sequential? v) v [v]))
+
 (defn validate
   "Validate a set of things in iRODS.
 
@@ -27,6 +33,7 @@
   :path-readable (string or vector, path or paths to check), (string user), (string zone)
   :path-writeable (string or vector, path or paths to check), (string user), (string zone)
   :path-owned (string or vector, path or paths to check), (string user), (string zone)
+  :uuid-exists (string or vector, uuid or uuids to check)
   "
   [irods & validations]
 
@@ -76,4 +83,10 @@
                              (throw+ {:error_code error/ERR_NOT_READABLE
                                       :path p
                                       :user user}))))
+        :uuid-exists (let [[uuids] (rest v)
+                           uuids (to-sequence uuids)
+                           path-map @(rods/uuids->paths irods uuids)]
+                       (when-let [missing-uuids (seq (remove path-map uuids))]
+                         (throw+ {:error_code error/ERR_DOES_NOT_EXIST
+                                  :ids missing-uuids})))
         (log/warn "Unrecognized validation type:" (first v))))))
