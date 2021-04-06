@@ -283,4 +283,5 @@
    icat/paths-for-uuids
    (:icat-pool irods)
    #(vector (str %) ::path-for-uuid)
+   str
    uuids))

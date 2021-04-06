@@ -122,4 +122,5 @@
    (fn [ids] (uuid/get-paths @(:jargon irods) ids))
    (:jargon-pool irods)
    #(vector (str %) ::path-for-uuid)
+   str
    uuids))

@@ -114,15 +114,15 @@
        (into {})))
 
 (defn- store-multi
-  [cache location-fn ids ag]
+  [cache location-fn id-key-fn ids ag]
   (->> (for [id ids]
          (let [ks          (location-fn id)
-               cache-entry (delay (await ag) (get (rethrow-if-error @ag) id))]
+               cache-entry (delay (await ag) (get (rethrow-if-error @ag) (id-key-fn id)))]
            [id (get-in (swap! cache assoc-in-empty ks cache-entry) ks)]))
        (into {})))
 
 (defn cached-or-retrieved-values
-  [cache action pool location-fn ids]
+  [cache action pool location-fn id-key-fn ids]
   (let [cached       (get-cached-values cache location-fn ids)
         uncached-ids (set/difference (set ids) (set (keys cached)))
         deref-vals   (fn [m] (map-kv-vals (fn [_ v] @v) m))]
@@ -130,7 +130,7 @@
       (otel/with-span [s ["agent for retrieving multiple values"]]
         (let [ag (agent nil)]
           (send-via pool ag (fn [_nil] (otel-with-subspan [s] (do-or-error action uncached-ids))))
-          (let [stored-delays (store-multi cache location-fn ids ag)]
+          (let [stored-delays (store-multi cache location-fn id-key-fn ids ag)]
             (delay (deref-vals (merge cached stored-delays))))))
       (delay (deref-vals cached)))))
 
