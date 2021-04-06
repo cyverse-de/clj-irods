@@ -7,6 +7,8 @@
                         ["snapshots" :clojars]]
   :plugins [[jonase/eastwood "0.3.14"]
             [test2junit "1.2.2"]]
+  :profiles {:repl {:dependencies [[cheshire "5.10.0"]]
+                    :source-paths ["repl"]}}
   :dependencies [[org.clojure/clojure "1.10.2"]
                  [medley "1.3.0"]
                  [org.cyverse/otel "0.2.0"]
