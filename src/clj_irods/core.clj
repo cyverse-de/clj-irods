@@ -174,6 +174,31 @@
     [from-listing listing-extract-fn user zone path]
     [from-stat stat-extract-fn path]))
 
+;; Formatting functions
+(defn- object-type-from-listing
+  "Determines the object type from an item listing."
+  [item]
+  (condp = (:type item)
+    "dataobject" :file
+    "collection" :dir
+    :none))
+
+(defn- epoch-millis-from-listing-timestamp
+  "Converts a timestamp from a listing, which is a string representation of the number of seconds since the epoch, to the
+  number of milliseconds since the epoch."
+  [timestamp]
+  (* 100 (Integer/parseInt timestamp)))
+
+(defn- stat-from-listing
+  "Formats file stat information from a file listing."
+  [listing]
+  (when listing
+    {:id            (:full_path listing)
+     :path          (:full_path listing)
+     :type          (object-type-from-listing listing)
+     :date-created  (epoch-millis-from-listing-timestamp (:create_ts listing))
+     :date-modified (epoch-millis-from-listing-timestamp (:modify_ts listing))}))
+
 ;; Actual API functions
 (defn invalidate
   "Removes a provided path, uuid, user, etc. from the cache. Can be either a single key or a vector path into the cache.
@@ -193,19 +218,25 @@
   "The modified date of the path, as milliseconds since the epoch"
   [irods user zone path]
   (otel/with-span [s ["date-modified"]]
-    (from-stat-or-listing :date-modified (comp (partial * 1000) #(Integer/parseInt %) :modify_ts) irods user zone path)))
+    (from-stat-or-listing :date-modified (comp epoch-millis-from-listing-timestamp :modify_ts) irods user zone path)))
 
 (defn date-created
   "The created date of the path, as milliseconds since the epoch"
   [irods user zone path]
   (otel/with-span [s ["date-created"]]
-    (from-stat-or-listing :date-created (comp (partial * 1000) #(Integer/parseInt %) :create_ts) irods user zone path)))
+    (from-stat-or-listing :date-created (comp epoch-millis-from-listing-timestamp :create_ts) irods user zone path)))
 
 (defn file-size
   "The number of bytes of a path. 0 for folders."
   [irods user zone path]
   (otel/with-span [s ["file-size"]]
     (from-stat-or-listing :file-size :data_size irods user zone path)))
+
+(defn stat
+  "Item stat information for a path."
+  [irods user zone path]
+  (otel/with-span [s ["stat"]]
+    (from-stat-or-listing identity stat-from-listing irods user zone path)))
 
 (defn object-avu
   "Get a specific AVU or set of AVUs for a path, filtering on attribute, value, and/or unit.
