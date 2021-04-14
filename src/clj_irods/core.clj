@@ -197,7 +197,8 @@
      :path          (:full_path listing)
      :type          (object-type-from-listing listing)
      :date-created  (epoch-millis-from-listing-timestamp (:create_ts listing))
-     :date-modified (epoch-millis-from-listing-timestamp (:modify_ts listing))}))
+     :date-modified (epoch-millis-from-listing-timestamp (:modify_ts listing))
+     :md5           (:data_checksum listing)}))
 
 ;; Actual API functions
 (defn invalidate
