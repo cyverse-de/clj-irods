@@ -285,3 +285,23 @@
    #(vector (str %) ::path-for-uuid)
    str
    uuids))
+
+;; list-perms-for-item
+(defn- list-perms-for-item*
+  [irods path]
+  (->> [path ::list-perms-for-item]
+       (cache/cached-or-do (:cache irods) #(icat/list-perms-for-item path))))
+
+(defn list-perms-for-item
+  [irods path]
+  (->> [path ::list-perms-for-item]
+       (cache/cached-or-agent (:cache irods) #(list-perms-for-item* irods path) (:icat-pool irods))))
+
+(defn cached-list-perms-for-item
+  [irods path]
+  (->> [path ::list-perms-for-item]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-list-perms-for-item
+  [irods path]
+  (delay (deref (list-perms-for-item irods path))))

@@ -388,3 +388,22 @@
       [(fn [cache? irods uuids]
          (when (:has-jargon irods)
            (jargon/get-paths irods uuids))) uuids])))
+
+(defn list-user-permissions
+  "Lists permissions for all users on a path."
+  [irods path]
+  (otel/with-span [s ["list-user-permissions"]]
+    (cached-or-get irods
+                   [(fn [cache? irods path]
+                      (let [format-perm (fn [{user :user access-type-id :access_type_id}]
+                                          {:user user :permissions (jargon-perms/perm-map-for (str access-type-id))})]
+                        (if cache?
+                          (when-let [perms (icat/cached-list-perms-for-item irods path)]
+                            (instrumented-delay (mapv format-perm @perms)))
+                          (when (:has-icat irods)
+                            (instrumented-delay (mapv format-perm @(icat/list-perms-for-item irods path))))))) path]
+                   [(fn [cache? irods path]
+                      (if cache?
+                        (jargon/cached-list-user-perms irods path)
+                        (when (:has-jargon irods)
+                          (jargon/list-user-perms irods path)))) path])))
