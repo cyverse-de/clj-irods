@@ -394,16 +394,48 @@
   [irods path]
   (otel/with-span [s ["list-user-permissions"]]
     (cached-or-get irods
-                   [(fn [cache? irods path]
-                      (let [format-perm (fn [{user :user access-type-id :access_type_id}]
-                                          {:user user :permissions (jargon-perms/perm-map-for (str access-type-id))})]
-                        (if cache?
-                          (when-let [perms (icat/cached-list-perms-for-item irods path)]
-                            (instrumented-delay (mapv format-perm @perms)))
-                          (when (:has-icat irods)
-                            (instrumented-delay (mapv format-perm @(icat/list-perms-for-item irods path))))))) path]
-                   [(fn [cache? irods path]
-                      (if cache?
-                        (jargon/cached-list-user-perms irods path)
-                        (when (:has-jargon irods)
-                          (jargon/list-user-perms irods path)))) path])))
+      [(fn [cache? irods path]
+         (let [format-perm (fn [{user :user access-type-id :access_type_id}]
+                             {:user user :permissions (jargon-perms/perm-map-for (str access-type-id))})]
+           (if cache?
+             (when-let [perms (icat/cached-list-perms-for-item irods path)]
+               (instrumented-delay (mapv format-perm @perms)))
+             (when (:has-icat irods)
+               (instrumented-delay (mapv format-perm @(icat/list-perms-for-item irods path))))))) path]
+      [(fn [cache? irods path]
+         (if cache?
+           (jargon/cached-list-user-perms irods path)
+           (when (:has-jargon irods)
+             (jargon/list-user-perms irods path)))) path])))
+
+(defn number-of-files-in-folder
+  "Counts the number of files within a folder, excluding subfolders."
+  [irods user zone path]
+  (otel/with-span [s ["number-of-files-in-folder"]]
+    (cached-or-get irods
+      [(fn [cache? irods user zone path]
+         (if cache?
+           (icat/cached-number-of-files-in-folder irods user zone path)
+           (when (:has-icat irods)
+             (icat/number-of-files-in-folder irods user zone path)))) user zone path]
+      [(fn [cache? irods user zone path]
+         (if cache?
+           (jargon/cached-num-dataobjects-under-path irods user zone path)
+           (when (:has-jargon irods)
+             (jargon/num-dataobjects-under-path irods user zone path)))) user zone path])))
+
+(defn number-of-folders-in-folder
+  "Counts the number of folders within a folder, excluding subfolders."
+  [irods user zone path]
+  (otel/with-span [s ["number-of-folders-in-folder"]]
+    (cached-or-get irods
+      [(fn [cache? irods user zone path]
+         (if cache?
+           (icat/cached-number-of-folders-in-folder irods user zone path)
+           (when (:has-icat irods)
+             (icat/number-of-folders-in-folder irods user zone path)))) user zone path]
+      [(fn [cache? irods user zone path]
+         (if cache?
+           (jargon/cached-num-collections-under-path irods user zone path)
+           (when (:has-jargon irods)
+             (jargon/num-collections-under-path irods user zone path)))) user zone path])))

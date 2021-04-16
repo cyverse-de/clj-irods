@@ -5,6 +5,7 @@
   (:require [clj-jargon.users :as users]
             [clj-jargon.by-uuid :as uuid]
             [clj-jargon.item-info :as info]
+            [clj-jargon.lazy-listings :as lazy-listings]
             [clj-jargon.permissions :as perms]
             [clj-jargon.metadata :as metadata]
             [clj-irods.cache-tools :as cache]
@@ -144,3 +145,43 @@
 (defn maybe-list-user-perms
   [irods path]
   (delay (deref (list-user-perms irods path))))
+
+;; num-collections-under-path
+(defn- num-collections-under-path*
+  [irods user zone path]
+  (->> [user zone path ::num-collections-under-path]
+       (cache/cached-or-do (:cache irods) #(lazy-listings/num-collections-under-path @(:jargon irods) user path))))
+
+(defn num-collections-under-path
+  [irods user zone path]
+  (->> [user zone path ::num-collections-under-path]
+       (cache/cached-or-agent (:cache irods) #(num-collections-under-path* irods user zone path) (:jargon-pool irods))))
+
+(defn cached-num-collections-under-path
+  [irods user zone path]
+  (->> [user zone path ::num-collections-under-path]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-num-collections-under-path
+  [irods user zone path]
+  (delay (deref (num-collections-under-path irods user zone path))))
+
+;; num-dataobjects-under-path
+(defn- num-dataobjects-under-path*
+  [irods user zone path]
+  (->> [user zone path ::num-dataobjects-under-path]
+       (cache/cached-or-do (:cache irods) #(lazy-listings/num-dataobjects-under-path @(:jargon irods) user path))))
+
+(defn num-dataobjects-under-path
+  [irods user zone path]
+  (->> [user zone path ::num-dataobjects-under-path]
+       (cache/cached-or-agent (:cache irods) #(num-dataobjects-under-path* irods user zone path) (:jargon-pool irods))))
+
+(defn cached-num-dataobjects-under-path
+  [irods user zone path]
+  (->> [user zone path ::num-dataobjects-under-path]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-num-dataobjects-under-path
+  [irods user zone path]
+  (delay (deref (num-dataobjects-under-path irods user zone path))))
