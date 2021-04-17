@@ -187,7 +187,7 @@
   "Converts a timestamp from a listing, which is a string representation of the number of seconds since the epoch, to the
   number of milliseconds since the epoch."
   [timestamp]
-  (* 100 (Integer/parseInt timestamp)))
+  (* 1000 (Integer/parseInt timestamp)))
 
 (defn- stat-from-listing
   "Formats file stat information from a file listing."
@@ -198,7 +198,8 @@
      :type          (object-type-from-listing listing)
      :date-created  (epoch-millis-from-listing-timestamp (:create_ts listing))
      :date-modified (epoch-millis-from-listing-timestamp (:modify_ts listing))
-     :md5           (:data_checksum listing)}))
+     :md5           (:data_checksum listing)
+     :file-size     (:data_size listing)}))
 
 ;; Actual API functions
 (defn invalidate
