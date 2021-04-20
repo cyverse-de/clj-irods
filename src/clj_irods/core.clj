@@ -10,7 +10,9 @@
             [clj-irods.cache-tools :as cache]
             [clj-irods.jargon :as jargon]
             [clj-irods.icat :as icat]
-            [clojure-commons.file-utils :as ft])
+            [clojure-commons.file-utils :as ft]
+
+            [medley.core :refer [remove-vals]])
   (:import [java.util.concurrent Executors ThreadFactory]
            [org.irods.jargon.core.exception FileNotFoundException]))
 
@@ -193,13 +195,15 @@
   "Formats file stat information from a file listing."
   [listing]
   (when listing
-    {:id            (:full_path listing)
-     :path          (:full_path listing)
-     :type          (object-type-from-listing listing)
-     :date-created  (epoch-millis-from-listing-timestamp (:create_ts listing))
-     :date-modified (epoch-millis-from-listing-timestamp (:modify_ts listing))
-     :md5           (:data_checksum listing)
-     :file-size     (:data_size listing)}))
+    (let [type (object-type-from-listing listing)]
+      (->> {:id            (:full_path listing)
+            :path          (:full_path listing)
+            :type          type
+            :date-created  (epoch-millis-from-listing-timestamp (:create_ts listing))
+            :date-modified (epoch-millis-from-listing-timestamp (:modify_ts listing))
+            :md5           (when (= type :file) (:data_checksum listing))
+            :file-size     (when (= type :file) (:data_size listing))}
+           (remove-vals nil?)))))
 
 ;; Actual API functions
 (defn invalidate
