@@ -381,6 +381,9 @@
            (when (:has-jargon irods)
              (jargon/get-path irods uuid)))) uuid])))
 
+;; TODO: this isn't quite as optimized as it could be. For example, if the paths for all of the UUIDs
+;; have already been cached by calls to Jargon then the ICAT query will still occur even though it's
+;; unnecessary. This should be fixed eventually.
 (defn uuids->paths
   "The paths associated with multiple uuids, returned as a map from uuid to
   the corresponding path or nil"
