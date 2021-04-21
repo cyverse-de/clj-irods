@@ -13,10 +13,10 @@
                  [medley "1.3.0"]
                  [org.cyverse/otel "0.2.3"]
                  [org.cyverse/clojure-commons "3.0.6"]
-                 [org.cyverse/clj-icat-direct "2.9.3-SNAPSHOT"
+                 [org.cyverse/clj-icat-direct "2.9.3"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
-                 [org.cyverse/clj-jargon "2.8.13"
+                 [org.cyverse/clj-jargon "2.8.14"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
                  [slingshot "0.12.2"]])
