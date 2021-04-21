@@ -10,7 +10,9 @@
             [clj-irods.cache-tools :as cache]
             [clj-irods.jargon :as jargon]
             [clj-irods.icat :as icat]
-            [clojure-commons.file-utils :as ft])
+            [clojure-commons.file-utils :as ft]
+
+            [medley.core :refer [remove-vals]])
   (:import [java.util.concurrent Executors ThreadFactory]
            [org.irods.jargon.core.exception FileNotFoundException]))
 
@@ -83,7 +85,7 @@
            jargon-cfg# (or (:jargon-cfg ~cfg) (jargon-cfg (:jargon ~cfg)))
            jargon-opts# (or (:jargon-opts ~cfg) {})
            use-jargon# (boolean jargon-cfg#)
-           use-icat# (have-icat)
+           use-icat# (and (:use-icat ~cfg true) (have-icat))
            use-icat-transaction# (and use-icat# (get ~cfg :use-icat-transaction true))
            jargon-pool# (or (:combined-pool ~cfg) (:jargon-pool ~cfg) (make-threadpool (str id# "-jargon") (or (:jargon-pool-size ~cfg) 1)))
            icat-pool#   (or (:combined-pool ~cfg) (:icat-pool ~cfg) (make-threadpool (str id# "-icat") (or (:icat-pool-size ~cfg) 5)))]
@@ -174,6 +176,35 @@
     [from-listing listing-extract-fn user zone path]
     [from-stat stat-extract-fn path]))
 
+;; Formatting functions
+(defn- object-type-from-listing
+  "Determines the object type from an item listing."
+  [item]
+  (condp = (:type item)
+    "dataobject" :file
+    "collection" :dir
+    :none))
+
+(defn- epoch-millis-from-listing-timestamp
+  "Converts a timestamp from a listing, which is a string representation of the number of seconds since the epoch, to the
+  number of milliseconds since the epoch."
+  [timestamp]
+  (* 1000 (Integer/parseInt timestamp)))
+
+(defn- stat-from-listing
+  "Formats file stat information from a file listing."
+  [listing]
+  (when listing
+    (let [type (object-type-from-listing listing)]
+      (->> {:id            (:full_path listing)
+            :path          (:full_path listing)
+            :type          type
+            :date-created  (epoch-millis-from-listing-timestamp (:create_ts listing))
+            :date-modified (epoch-millis-from-listing-timestamp (:modify_ts listing))
+            :md5           (when (= type :file) (:data_checksum listing))
+            :file-size     (when (= type :file) (:data_size listing))}
+           (remove-vals nil?)))))
+
 ;; Actual API functions
 (defn invalidate
   "Removes a provided path, uuid, user, etc. from the cache. Can be either a single key or a vector path into the cache.
@@ -193,19 +224,25 @@
   "The modified date of the path, as milliseconds since the epoch"
   [irods user zone path]
   (otel/with-span [s ["date-modified"]]
-    (from-stat-or-listing :date-modified (comp (partial * 1000) #(Integer/parseInt %) :modify_ts) irods user zone path)))
+    (from-stat-or-listing :date-modified (comp epoch-millis-from-listing-timestamp :modify_ts) irods user zone path)))
 
 (defn date-created
   "The created date of the path, as milliseconds since the epoch"
   [irods user zone path]
   (otel/with-span [s ["date-created"]]
-    (from-stat-or-listing :date-created (comp (partial * 1000) #(Integer/parseInt %) :create_ts) irods user zone path)))
+    (from-stat-or-listing :date-created (comp epoch-millis-from-listing-timestamp :create_ts) irods user zone path)))
 
 (defn file-size
   "The number of bytes of a path. 0 for folders."
   [irods user zone path]
   (otel/with-span [s ["file-size"]]
     (from-stat-or-listing :file-size :data_size irods user zone path)))
+
+(defn stat
+  "Item stat information for a path."
+  [irods user zone path]
+  (otel/with-span [s ["stat"]]
+    (from-stat-or-listing identity stat-from-listing irods user zone path)))
 
 (defn object-avu
   "Get a specific AVU or set of AVUs for a path, filtering on attribute, value, and/or unit.
@@ -343,3 +380,70 @@
            (jargon/cached-get-path irods uuid)
            (when (:has-jargon irods)
              (jargon/get-path irods uuid)))) uuid])))
+
+;; TODO: this isn't quite as optimized as it could be. For example, if the paths for all of the UUIDs
+;; have already been cached by calls to Jargon then the ICAT query will still occur even though it's
+;; unnecessary. This should be fixed eventually.
+(defn uuids->paths
+  "The paths associated with multiple uuids, returned as a map from uuid to
+  the corresponding path or nil"
+  [irods uuids]
+  (otel/with-span [s ["uuids->paths"]]
+    (cached-or-get irods
+      [(fn [cache? irods uuids]
+         (when (:has-icat irods)
+           (icat/paths-for-uuids irods uuids))) uuids]
+      [(fn [cache? irods uuids]
+         (when (:has-jargon irods)
+           (jargon/get-paths irods uuids))) uuids])))
+
+(defn list-user-permissions
+  "Lists permissions for all users on a path."
+  [irods path]
+  (otel/with-span [s ["list-user-permissions"]]
+    (cached-or-get irods
+      [(fn [cache? irods path]
+         (let [format-perm (fn [{user :user access-type-id :access_type_id}]
+                             {:user user :permissions (jargon-perms/perm-map-for (str access-type-id))})]
+           (if cache?
+             (when-let [perms (icat/cached-list-perms-for-item irods path)]
+               (instrumented-delay (mapv format-perm @perms)))
+             (when (:has-icat irods)
+               (instrumented-delay (mapv format-perm @(icat/list-perms-for-item irods path))))))) path]
+      [(fn [cache? irods path]
+         (if cache?
+           (jargon/cached-list-user-perms irods path)
+           (when (:has-jargon irods)
+             (jargon/list-user-perms irods path)))) path])))
+
+(defn number-of-files-in-folder
+  "Counts the number of files within a folder, excluding subfolders."
+  [irods user zone path]
+  (otel/with-span [s ["number-of-files-in-folder"]]
+    (cached-or-get irods
+      [(fn [cache? irods user zone path]
+         (if cache?
+           (icat/cached-number-of-files-in-folder irods user zone path)
+           (when (:has-icat irods)
+             (icat/number-of-files-in-folder irods user zone path)))) user zone path]
+      [(fn [cache? irods user zone path]
+         (if cache?
+           (jargon/cached-num-dataobjects-under-path irods user zone path)
+           (when (:has-jargon irods)
+             (jargon/num-dataobjects-under-path irods user zone path)))) user zone path])))
+
+(defn number-of-folders-in-folder
+  "Counts the number of folders within a folder, excluding subfolders."
+  [irods user zone path]
+  (otel/with-span [s ["number-of-folders-in-folder"]]
+    (cached-or-get irods
+      [(fn [cache? irods user zone path]
+         (if cache?
+           (icat/cached-number-of-folders-in-folder irods user zone path)
+           (when (:has-icat irods)
+             (icat/number-of-folders-in-folder irods user zone path)))) user zone path]
+      [(fn [cache? irods user zone path]
+         (if cache?
+           (jargon/cached-num-collections-under-path irods user zone path)
+           (when (:has-jargon irods)
+             (jargon/num-collections-under-path irods user zone path)))) user zone path])))

@@ -274,3 +274,74 @@
 (defn maybe-path-for-uuid
   [irods uuid]
   (delay (deref (path-for-uuid irods uuid))))
+
+;; paths-for-uuids
+(defn paths-for-uuids
+  [irods uuids]
+  (cache/cached-or-retrieved-values
+   (:cache irods)
+   icat/paths-for-uuids
+   (:icat-pool irods)
+   #(vector (str %) ::path-for-uuid)
+   str
+   uuids))
+
+;; list-perms-for-item
+(defn- list-perms-for-item*
+  [irods path]
+  (->> [path ::list-perms-for-item]
+       (cache/cached-or-do (:cache irods) #(icat/list-perms-for-item path))))
+
+(defn list-perms-for-item
+  [irods path]
+  (->> [path ::list-perms-for-item]
+       (cache/cached-or-agent (:cache irods) #(list-perms-for-item* irods path) (:icat-pool irods))))
+
+(defn cached-list-perms-for-item
+  [irods path]
+  (->> [path ::list-perms-for-item]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-list-perms-for-item
+  [irods path]
+  (delay (deref (list-perms-for-item irods path))))
+
+;; number-of-files-in-folder
+(defn- number-of-files-in-folder*
+  [irods user zone path]
+  (->> [user zone path ::number-of-files-in-folder]
+       (cache/cached-or-do (:cache irods) #(icat/number-of-files-in-folder user zone path))))
+
+(defn number-of-files-in-folder
+  [irods user zone path]
+  (->> [user zone path ::number-of-files-in-folder]
+       (cache/cached-or-agent (:cache irods) #(number-of-files-in-folder* irods user zone path) (:icat-pool irods))))
+
+(defn cached-number-of-files-in-folder
+  [irods user zone path]
+  (->> [user zone path ::number-of-files-in-folder]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-number-of-files-in-folder
+  [irods user zone path]
+  (delay (deref (number-of-files-in-folder irods user zone path))))
+
+;; number-of-folders-in-folder
+(defn- number-of-folders-in-folder*
+  [irods user zone path]
+  (->> [user zone path ::number-of-folders-in-folder]
+       (cache/cached-or-do (:cache irods) #(icat/number-of-folders-in-folder user zone path))))
+
+(defn number-of-folders-in-folder
+  [irods user zone path]
+  (->> [user zone path ::number-of-folders-in-folder]
+       (cache/cached-or-agent (:cache irods) #(number-of-folders-in-folder* irods user zone path) (:icat-pool irods))))
+
+(defn cached-number-of-folders-in-folder
+  [irods user zone path]
+  (->> [user zone path ::number-of-folders-in-folder]
+       (cache/cached-or-nil (:cache irods))))
+
+(defn maybe-number-of-folders-in-folder
+  [irods user zone path]
+  (delay (deref (number-of-folders-in-folder irods user zone path))))
