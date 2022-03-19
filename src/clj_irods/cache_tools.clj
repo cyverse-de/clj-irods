@@ -88,10 +88,10 @@
   (let [cached (get-in @cache ks)]
     (if (delay? cached) ;; here, only check that something's there, deref later is fine
       (do
-        (log/info "got cached value:" ks)
+        (log/debug "got cached value:" ks)
         (delay (rethrow-if-error @cached)))
       (otel/with-span [s ["agent for calculation"]]
-        (log/info "launching agent:" ks)
+        (log/debug "launching agent:" ks)
         (let [ag (agent nil)]
           (send-via pool ag (fn [_nil] (otel-with-subspan [s] @(action))))
           (delay (await ag) (rethrow-if-error @ag)))))))
@@ -103,7 +103,7 @@
   [cache ks]
   (let [cached (get-in @cache ks)]
     (when (and (delay? cached) (realized? cached)) ;; here, only allow realized delays, because we want to never do actual calculation
-      (log/info "got cached value:" ks)
+      (log/debug "got cached value:" ks)
       (delay (rethrow-if-error @cached)))))
 
 (defn- get-cached-values
