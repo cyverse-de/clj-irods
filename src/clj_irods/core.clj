@@ -18,18 +18,19 @@
 
 (def jargon-cfg
   (memoize (fn [c]
-             (when c
-               (init/init
-                 (:host c)
-                 (:port c)
-                 (:username c)
-                 (:password c)
-                 (:home c)
-                 (:zone c)
-                 (:resource c)
-                 :max-retries (:max-retries c)
-                 :retry-sleep (:retry-sleep c)
-                 :use-trash (:use-trash c))))))
+             (otel/with-span [s ["jargon-cfg"]]
+               (when c
+                 (init/init
+                   (:host c)
+                   (:port c)
+                   (:username c)
+                   (:password c)
+                   (:home c)
+                   (:zone c)
+                   (:resource c)
+                   :max-retries (:max-retries c)
+                   :retry-sleep (:retry-sleep c)
+                   :use-trash (:use-trash c)))))))
 
 (def icat-spec
   (memoize (fn [c]
@@ -66,14 +67,16 @@
 
 (defn make-threadpool
   [prefix thread-count]
-  (let [counter (atom 0)]
-    (Executors/newFixedThreadPool
-      thread-count
-      (proxy [ThreadFactory] []
-        (newThread [^Runnable runnable]
-          (let [t (Thread. runnable)]
-            (.setName t (str prefix "-" (swap! counter inc)))
-            t))))))
+  (otel/with-span [s ["make-threadpool" {:attributes {"thread-pool-prefix" prefix}}]]
+    (let [counter (atom 0)]
+      (Executors/newFixedThreadPool
+        thread-count
+        (proxy [ThreadFactory] []
+          (newThread [^Runnable runnable]
+            (otel/with-span [s ["newThread" {:attributes {"thread-pool-prefix" prefix}}]]
+              (let [t (Thread. runnable)]
+                (.setName t (str prefix "-" (swap! counter inc)))
+                t))))))))
 
 (defmacro with-irods
   "Open connections to iRODS and/or transactions in the ICAT depending on the
