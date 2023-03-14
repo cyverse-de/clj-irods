@@ -350,6 +350,20 @@
                          (when (:has-icat irods) (deref (icat/paged-folder-listing irods user zone path :entity-type entity-type :info-types info-types)))))
                      [:total_count])))))
 
+(defn list-folders-in-folder
+  "Get a listing of folders within a specified folder. This is done for a very
+  specific use case, so the results cannot be paged or filtered. This function
+  is not supported in Jargon yet."
+  [irods user zone path]
+  (otel/with-span [s ["list-folders-in-folder"]]
+    (cached-or-get irods
+     [(fn [cache? irods user zone path]
+        (when-let [folders (if cache?
+                             (icat/cached-folders-in-folder irods user zone path)
+                             (when (:has-icat irods)
+                               (icat/folders-in-folder irods user zone path)))]
+          (delay @folders)))] user zone path)))
+
 (defn user-type
   "The user type associated with a username. :none if the user does not exist, theoretically"
   [irods username zone]
