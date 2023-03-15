@@ -362,7 +362,7 @@
                              (icat/cached-folders-in-folder irods user zone path)
                              (when (:has-icat irods)
                                (icat/folders-in-folder irods user zone path)))]
-          (delay @folders)))] user zone path)))
+          (delay @folders))) user zone path])))
 
 (defn user-type
   "The user type associated with a username. :none if the user does not exist, theoretically"
