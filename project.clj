@@ -12,7 +12,6 @@
                     :source-paths ["repl"]}}
   :dependencies [[org.clojure/clojure "1.11.3"]
                  [medley "1.4.0"]
-                 [org.cyverse/otel "0.2.6"]
                  [org.cyverse/clojure-commons "3.0.8"]
                  [org.cyverse/clj-icat-direct "2.9.6-SNAPSHOT"
                    :exclusions [[org.slf4j/slf4j-log4j12]

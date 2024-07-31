@@ -30,13 +30,8 @@
   the function might need to be used there."
   (:require [slingshot.slingshot :refer [try+ throw+]]
             [medley.core :refer [dissoc-in map-kv-vals]]
-            [otel.otel :as otel]
             [clojure.set :as set]
             [clojure.tools.logging :as log]))
-
-(defmacro otel-with-subspan [[s] & body]
-  `(with-open [_# (otel/span-scope ~s)]
-     ~@body))
 
 (defn rethrow-if-error
   "Takes a return value. If it is an error as created by `do-or-error`,
@@ -90,10 +85,10 @@
       (do
         (log/debug "got cached value:" ks)
         (delay (rethrow-if-error @cached)))
-      (otel/with-span [s ["agent for calculation"]]
+      (do
         (log/debug "launching agent:" ks)
         (let [ag (agent nil)]
-          (send-via pool ag (fn [_nil] (otel-with-subspan [s] @(action))))
+          (send-via pool ag (fn [_nil] @(action)))
           (delay (await ag) (rethrow-if-error @ag)))))))
 
 (defn cached-or-nil
@@ -127,11 +122,10 @@
         uncached-ids (set/difference (set ids) (set (keys cached)))
         deref-vals   (fn [m] (map-kv-vals (fn [_ v] @v) m))]
     (if-not (empty? uncached-ids)
-      (otel/with-span [s ["agent for retrieving multiple values"]]
-        (let [ag (agent nil)]
-          (send-via pool ag (fn [_nil] (otel-with-subspan [s] (do-or-error action uncached-ids))))
-          (let [stored-delays (store-multi cache location-fn id-key-fn uncached-ids ag)]
-            (delay (deref-vals (merge cached stored-delays))))))
+      (let [ag (agent nil)]
+        (send-via pool ag (fn [_nil] (do-or-error action uncached-ids)))
+        (let [stored-delays (store-multi cache location-fn id-key-fn uncached-ids ag)]
+          (delay (deref-vals (merge cached stored-delays)))))
       (delay (deref-vals cached)))))
 
 (defn clear-cache-prefix
