@@ -5,18 +5,19 @@
             :url "http://www.iplantcollaborative.org/sites/default/files/iPLANT-LICENSE.txt"}
   :deploy-repositories [["releases" :clojars]
                         ["snapshots" :clojars]]
-  :plugins [[jonase/eastwood "0.3.14"]
-            [test2junit "1.2.2"]]
-  :profiles {:repl {:dependencies [[cheshire "5.10.0"]]
+  :plugins [[jonase/eastwood "1.4.3"]
+            [lein-ancient "0.7.0"]
+            [test2junit "1.4.4"]]
+  :profiles {:repl {:dependencies [[cheshire "5.13.0"]]
                     :source-paths ["repl"]}}
-  :dependencies [[org.clojure/clojure "1.10.3"]
-                 [medley "1.3.0"]
-                 [org.cyverse/otel "0.2.4"]
-                 [org.cyverse/clojure-commons "3.0.6"]
-                 [org.cyverse/clj-icat-direct "2.9.5"
+  :dependencies [[org.clojure/clojure "1.11.3"]
+                 [medley "1.4.0"]
+                 [org.cyverse/otel "0.2.6"]
+                 [org.cyverse/clojure-commons "3.0.8"]
+                 [org.cyverse/clj-icat-direct "2.9.6-SNAPSHOT"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
-                 [org.cyverse/clj-jargon "3.0.2"
+                 [org.cyverse/clj-jargon "3.1.1"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
                  [slingshot "0.12.2"]])
