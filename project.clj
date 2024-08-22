@@ -1,4 +1,4 @@
-(defproject org.cyverse/clj-irods "0.3.7-SNAPSHOT"
+(defproject org.cyverse/clj-irods "0.3.7"
   :description "A Clojure library for interacting with the IRODS data system. Wraps clj-jargon and clj-icat-direct for a nicer interface"
   :url "https://github.com/cyverse-de/clj-irods"
   :license {:name "BSD Standard License"
@@ -16,7 +16,7 @@
                  [org.cyverse/clj-icat-direct "2.9.6"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
-                 [org.cyverse/clj-jargon "3.1.2-SNAPSHOT"
+                 [org.cyverse/clj-jargon "3.1.2"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
                  [slingshot "0.12.2"]])
