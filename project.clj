@@ -13,7 +13,7 @@
   :dependencies [[org.clojure/clojure "1.11.4"]
                  [medley "1.4.0"]
                  [org.cyverse/clojure-commons "3.0.9"]
-                 [org.cyverse/clj-icat-direct "2.9.6"
+                 [org.cyverse/clj-icat-direct "2.9.7"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
                  [org.cyverse/clj-jargon "3.1.2"
