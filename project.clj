@@ -8,15 +8,15 @@
   :plugins [[jonase/eastwood "1.4.3"]
             [lein-ancient "0.7.0"]
             [test2junit "1.4.4"]]
-  :profiles {:repl {:dependencies [[cheshire "5.13.0"]]
+  :profiles {:repl {:dependencies [[cheshire "6.0.0"]]
                     :source-paths ["repl"]}}
-  :dependencies [[org.clojure/clojure "1.11.4"]
+  :dependencies [[org.clojure/clojure "1.12.1"]
                  [medley "1.4.0"]
-                 [org.cyverse/clojure-commons "3.0.9"]
+                 [org.cyverse/clojure-commons "3.0.11"]
                  [org.cyverse/clj-icat-direct "2.9.7"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
-                 [org.cyverse/clj-jargon "3.1.2"
+                 [org.cyverse/clj-jargon "3.1.3"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
                  [slingshot "0.12.2"]])
