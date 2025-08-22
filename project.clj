@@ -16,7 +16,7 @@
                  [org.cyverse/clj-icat-direct "2.9.7"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
-                 [org.cyverse/clj-jargon "3.1.3"
+                 [org.cyverse/clj-jargon "3.1.4-SNAPSHOT"
                    :exclusions [[org.slf4j/slf4j-log4j12]
                                 [log4j]]]
                  [slingshot "0.12.2"]])
