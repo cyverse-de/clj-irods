@@ -12,12 +12,12 @@
                     :source-paths ["repl"]}}
   :dependencies [[org.clojure/clojure "1.12.5"]
                  [dev.weavejester/medley "1.10.0"]
-                 [org.cyverse/clojure-commons "3.0.12"
+                 [org.cyverse/clojure-commons "3.0.13"
                   :exclusions [[medley]]]
-                 [org.cyverse/clj-icat-direct "2.9.7"
+                 [org.cyverse/clj-icat-direct "2.9.8"
                   :exclusions [[org.slf4j/slf4j-log4j12]
                                [log4j]]]
-                 [org.cyverse/clj-jargon "3.1.5"
+                 [org.cyverse/clj-jargon "3.1.6"
                   :exclusions [[org.slf4j/slf4j-log4j12]
                                [log4j]]]
                  [slingshot "0.12.2"]])
