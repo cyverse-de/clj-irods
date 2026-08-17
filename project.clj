@@ -6,7 +6,7 @@
   :deploy-repositories [["releases" :clojars]
                         ["snapshots" :clojars]]
   :plugins [[jonase/eastwood "1.4.3"]
-            [lein-ancient "0.7.0"]
+            [lein-ancient "1.0.0"]
             [test2junit "1.4.4"]]
   :profiles {:repl {:dependencies [[cheshire "5.13.0"]]
                     :source-paths ["repl"]}}
